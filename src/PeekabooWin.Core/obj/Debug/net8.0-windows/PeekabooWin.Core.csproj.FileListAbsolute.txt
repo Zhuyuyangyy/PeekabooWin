@@ -1,0 +1,11 @@
+D:\GITHUB\PeekabooWin\src\PeekabooWin.Core\bin\Debug\net8.0-windows\PeekabooWin.Core.deps.json
+D:\GITHUB\PeekabooWin\src\PeekabooWin.Core\bin\Debug\net8.0-windows\PeekabooWin.Core.dll
+D:\GITHUB\PeekabooWin\src\PeekabooWin.Core\bin\Debug\net8.0-windows\PeekabooWin.Core.pdb
+D:\GITHUB\PeekabooWin\src\PeekabooWin.Core\obj\Debug\net8.0-windows\PeekabooWin.Core.GeneratedMSBuildEditorConfig.editorconfig
+D:\GITHUB\PeekabooWin\src\PeekabooWin.Core\obj\Debug\net8.0-windows\PeekabooWin.Core.AssemblyInfoInputs.cache
+D:\GITHUB\PeekabooWin\src\PeekabooWin.Core\obj\Debug\net8.0-windows\PeekabooWin.Core.AssemblyInfo.cs
+D:\GITHUB\PeekabooWin\src\PeekabooWin.Core\obj\Debug\net8.0-windows\PeekabooWin.Core.csproj.CoreCompileInputs.cache
+D:\GITHUB\PeekabooWin\src\PeekabooWin.Core\obj\Debug\net8.0-windows\PeekabooWin.Core.dll
+D:\GITHUB\PeekabooWin\src\PeekabooWin.Core\obj\Debug\net8.0-windows\refint\PeekabooWin.Core.dll
+D:\GITHUB\PeekabooWin\src\PeekabooWin.Core\obj\Debug\net8.0-windows\PeekabooWin.Core.pdb
+D:\GITHUB\PeekabooWin\src\PeekabooWin.Core\obj\Debug\net8.0-windows\ref\PeekabooWin.Core.dll
