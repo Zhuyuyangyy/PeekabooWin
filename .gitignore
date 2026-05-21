@@ -1,0 +1,9 @@
+﻿bin/
+obj/
+*.dll
+*.pdb
+*.exe
+*.runtimeconfig.json
+*.deps.json
+*.DotSettings.user
+*.user

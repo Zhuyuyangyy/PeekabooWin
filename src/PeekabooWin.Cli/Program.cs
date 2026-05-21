@@ -482,7 +482,8 @@ class Program
 
             var findResult = new
             {
-                text,
+                search_query = text,
+                recognized_text = ocrResult.Text,
                 matches_count = words.Count,
                 matches = words.Select(w => new { w.Text, w.BoundingBox }).ToList(),
                 first_center = center.HasValue ? new { x = center.Value.x, y = center.Value.y } : null
