@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using PeekabooWin.Core.Agent;
 using PeekabooWin.Core.Capture;
 using PeekabooWin.Core.Input;
 using PeekabooWin.Core.Models;
@@ -81,6 +82,9 @@ class Program
 
                 case "ocr":
                     return HandleOcr(args, captureService, windowService);
+
+                case "agent":
+                    return HandleAgent(args, windowService, captureService, inputService, uiaService);
 
                 case "--help" or "-h" or "help":
                     PrintUsage();
@@ -517,6 +521,36 @@ class Program
             PrintJson(cmdResult);
             return ocrResult.Words.Count > 0 ? 0 : 1;
         }
+    }
+
+    // ==================== V0.4 Agent Handler ====================
+
+    static int HandleAgent(string[] args, WindowService windowService, CaptureService captureService, InputService inputService, UIAutomationService uiaService)
+    {
+        string? task = GetFlag(args, "--task", "-t");
+        int maxSteps = int.TryParse(GetFlag(args, "--max-steps", "-m") ?? "5", out var ms) ? ms : 5;
+        bool dryRun = HasFlag(args, "--dry-run", "-d");
+        string? context = GetFlag(args, "--context", "-c");
+
+        if (string.IsNullOrEmpty(task))
+        {
+            PrintError("agent", "Missing --task flag");
+            return 1;
+        }
+
+        var agentService = new AgentService(windowService, captureService, inputService, uiaService);
+        var request = new AgentTaskRequest
+        {
+            Task = task,
+            Context = context,
+            MaxSteps = maxSteps,
+            DryRun = dryRun
+        };
+
+        var result = agentService.ExecuteTask(request);
+        var cmdResult = CommandResult.Ok("agent", result);
+        PrintJson(cmdResult);
+        return result.Success ? 0 : 1;
     }
 
     // ==================== Helpers ====================
