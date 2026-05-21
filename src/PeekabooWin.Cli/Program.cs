@@ -4,6 +4,7 @@ using System.Text.Json;
 using PeekabooWin.Core.Capture;
 using PeekabooWin.Core.Input;
 using PeekabooWin.Core.Models;
+using PeekabooWin.Core.Ocr;
 using PeekabooWin.Core.UIAutomation;
 using PeekabooWin.Core.Windows;
 
@@ -77,6 +78,9 @@ class Program
 
                 case "find-by-control-type":
                     return HandleFindByControlType(args, uiaService);
+
+                case "ocr":
+                    return HandleOcr(args, captureService, windowService);
 
                 case "--help" or "-h" or "help":
                     PrintUsage();
@@ -425,6 +429,92 @@ class Program
             var r2 = CommandResult.Fail("click-element", "Element has no bounding box");
             PrintJson(r2);
             return 1;
+        }
+    }
+
+    // ==================== V0.2 UIA Handlers ====================
+
+    static int HandleOcr(string[] args, CaptureService captureService, WindowService windowService)
+    {
+        string? sub = args.Length > 1 ? args[1].ToLower() : null;
+        string? outPath = GetFlag(args, "--out", "-o");
+        string? window = GetFlag(args, "--window", "-w");
+        string? text = GetFlag(args, "--text", "-t");
+        bool screen = HasFlag(args, "--screen", "-s");
+        bool click = HasFlag(args, "--click", "-c");
+        string? lang = GetFlag(args, "--lang", "-l") ?? "chi_sim+eng";
+
+        using var ocrService = new OcrService(lang);
+
+        string imgPath;
+        if (!string.IsNullOrEmpty(window))
+        {
+            // Capture specific window
+            imgPath = outPath ?? Path.Combine(Path.GetTempPath(), $"ocr_window_{Guid.NewGuid():N}.png");
+            var cap = captureService.CaptureWindow(window, imgPath);
+            if (!cap.Success)
+            {
+                var r = CommandResult.Fail("ocr", $"Failed to capture window: {window}");
+                PrintJson(r);
+                return 1;
+            }
+        }
+        else
+        {
+            // Capture full screen
+            imgPath = outPath ?? Path.Combine(Path.GetTempPath(), $"ocr_screen_{Guid.NewGuid():N}.png");
+            var cap = captureService.CaptureScreen(imgPath);
+            if (!cap.Success)
+            {
+                var r = CommandResult.Fail("ocr", "Failed to capture screen");
+                PrintJson(r);
+                return 1;
+            }
+        }
+
+        var ocrResult = ocrService.RecognizeImageAsync(imgPath).GetAwaiter().GetResult();
+
+        if (!string.IsNullOrEmpty(text))
+        {
+            // Find specific text and optionally click
+            var words = ocrService.FindWords(ocrResult, text);
+            var center = ocrService.FindWordCenter(ocrResult, text);
+
+            var findResult = new
+            {
+                text,
+                matches_count = words.Count,
+                matches = words.Select(w => new { w.Text, w.BoundingBox }).ToList(),
+                first_center = center.HasValue ? new { x = center.Value.x, y = center.Value.y } : null
+            };
+
+            var cmdResult = CommandResult.Ok("ocr find-text", findResult);
+            PrintJson(cmdResult);
+
+            if (click && center.HasValue && center.Value.x > 0 && center.Value.y > 0)
+            {
+                var inputService = new InputService();
+                var clickResult = inputService.Click(center.Value.x, center.Value.y);
+                Console.WriteLine(JsonSerializer.Serialize(CommandResult.Ok("ocr click", clickResult), JsonOptions));
+                return 0;
+            }
+
+            return words.Count > 0 ? 0 : 1;
+        }
+        else
+        {
+            // Just recognize and return text
+            var cmdResult = CommandResult.Ok("ocr", new
+            {
+                text = ocrResult.Text,
+                words_count = ocrResult.Words.Count,
+                confidence = ocrResult.Confidence,
+                engine = ocrResult.Engine,
+                language = ocrResult.Language,
+                image = imgPath
+            });
+            PrintJson(cmdResult);
+            return ocrResult.Words.Count > 0 ? 0 : 1;
         }
     }
 

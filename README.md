@@ -50,23 +50,41 @@ peekaboo-win hotkey --keys "alt+f4"
 ```bash
 # 遍历窗口控件树
 peekaboo-win inspect --window "notepad"
-peekaboo-win inspect --window "notepad" --depth 5
+peekaboo-win inspect --window "notepad" --max-depth 5
 
 # 按名称/类型/AutomationId 查找控件
 peekaboo-win find --window "notepad" --name "文件"
-peekaboo-win find --window "notepad" --role button
-peekaboo-win find --window "notepad" --role edit
+peekaboo-win find --window "notepad" --control-type button
+peekaboo-win find --window "notepad" --control-type edit
 peekaboo-win find --window "notepad" --automation-id "EditBox"
 
 # 通过控件名点击（不靠坐标）
 peekaboo-win click-element --window "notepad" --name "保存"
 ```
 
+## V0.3 命令（OCR 文字识别兜底）
+
+```bash
+# OCR 识别截图中的文字
+peekaboo-win ocr --screen --out ocr_screen.png
+peekaboo-win ocr --window "Clash Verge" --out ocr_window.png
+
+# 在截图中搜索文字并点击
+peekaboo-win ocr --window "Clash Verge" --text "设置" --click
+peekaboo-win ocr --screen --text "关闭" --click
+
+# 指定语言（默认 chi_sim+eng）
+peekaboo-win ocr --window "notepad" --lang eng --text "Save"
+```
+
+> OCR 基于 Tesseract 5.x，训练数据（chi_sim+eng）需放置在 `tessdata/` 目录。
+
+
 ## 版本路线
 
 - [x] V0.1: 窗口枚举 + 截图 + 鼠标键盘
-- [x] V0.2: UI Automation 控件树 ← current
-- [ ] V0.3: OCR 兜底（Tesseract / Windows OCR）
+- [x] V0.2: UI Automation 控件树
+- [x] V0.3: OCR 文字识别兜底 ← current
 - [ ] V0.4: LLM Agent Runtime（自然语言任务）
 - [ ] V0.5: HTTP API 服务（给 Hermes/OpenClaw 调用）
 - [ ] V0.6: AgentShield 安全门控

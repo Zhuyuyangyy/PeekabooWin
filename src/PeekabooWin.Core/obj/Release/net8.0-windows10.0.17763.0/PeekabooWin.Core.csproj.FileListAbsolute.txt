@@ -1,0 +1,5 @@
+D:\GITHUB\PeekabooWin\src\PeekabooWin.Core\obj\Release\net8.0-windows10.0.17763.0\PeekabooWin.Core.GeneratedMSBuildEditorConfig.editorconfig
+D:\GITHUB\PeekabooWin\src\PeekabooWin.Core\obj\Release\net8.0-windows10.0.17763.0\PeekabooWin.Core.AssemblyInfoInputs.cache
+D:\GITHUB\PeekabooWin\src\PeekabooWin.Core\obj\Release\net8.0-windows10.0.17763.0\PeekabooWin.Core.AssemblyInfo.cs
+D:\GITHUB\PeekabooWin\src\PeekabooWin.Core\obj\Release\net8.0-windows10.0.17763.0\PeekabooWin.Core.csproj.CoreCompileInputs.cache
+D:\GITHUB\PeekabooWin\src\PeekabooWin.Core\obj\Release\net8.0-windows10.0.17763.0\PeekabooWin.Core.sourcelink.json

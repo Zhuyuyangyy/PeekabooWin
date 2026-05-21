@@ -16,3 +16,9 @@ D:\GITHUB\PeekabooWin\src\PeekabooWin.Cli\obj\Release\net8.0-windows\refint\Peek
 D:\GITHUB\PeekabooWin\src\PeekabooWin.Cli\obj\Release\net8.0-windows\PeekabooWin.Cli.pdb
 D:\GITHUB\PeekabooWin\src\PeekabooWin.Cli\obj\Release\net8.0-windows\PeekabooWin.Cli.genruntimeconfig.cache
 D:\GITHUB\PeekabooWin\src\PeekabooWin.Cli\obj\Release\net8.0-windows\ref\PeekabooWin.Cli.dll
+D:\GITHUB\PeekabooWin\src\PeekabooWin.Cli\bin\Release\net8.0-windows\x86\leptonica-1.82.0.dll
+D:\GITHUB\PeekabooWin\src\PeekabooWin.Cli\bin\Release\net8.0-windows\x86\tesseract50.dll
+D:\GITHUB\PeekabooWin\src\PeekabooWin.Cli\bin\Release\net8.0-windows\x64\leptonica-1.82.0.dll
+D:\GITHUB\PeekabooWin\src\PeekabooWin.Cli\bin\Release\net8.0-windows\x64\tesseract50.dll
+D:\GITHUB\PeekabooWin\src\PeekabooWin.Cli\bin\Release\net8.0-windows\Tesseract.dll
+D:\GITHUB\PeekabooWin\src\PeekabooWin.Cli\obj\Release\net8.0-windows\PeekabooWin.Cli.sourcelink.json
