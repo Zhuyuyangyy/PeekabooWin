@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using PeekabooWin.Core.Agent;
@@ -85,6 +85,9 @@ class Program
 
                 case "agent":
                     return HandleAgent(args, windowService, captureService, inputService, uiaService);
+
+                case "server":
+                    return HandleServer(args);
 
                 case "--help" or "-h" or "help":
                     PrintUsage();
@@ -553,12 +556,35 @@ class Program
         return result.Success ? 0 : 1;
     }
 
+    // ==================== V0.5 HTTP API Server ====================
+
+    static int HandleServer(string[] args)
+    {
+        string? portStr = GetFlag(args, "--port", "-p");
+        int port = int.TryParse(portStr, out var p) ? p : 8080;
+
+        Console.WriteLine($"[PeekabooWin] Starting HTTP API server on port {port}...");
+        var server = new ApiServer(port);
+        server.Start();
+
+        // Wait for Ctrl+C to stop
+        Console.CancelKeyPress += (s, e) =>
+        {
+            e.Cancel = true;
+            server.Stop();
+        };
+
+        Console.WriteLine("[PeekabooWin] API server running. Press Ctrl+C to stop.");
+        Thread.Sleep(Timeout.Infinite);
+        return 0;
+    }
+
     // ==================== Helpers ====================
 
     static void PrintUsage()
     {
         Console.WriteLine(@"
-PeekabooWin - Windows Desktop Automation CLI (V0.2.1)
+PeekabooWin - Windows Desktop Automation CLI (V0.5)
 
 Usage: peekaboo-win <command> [options]
 
@@ -581,8 +607,8 @@ V0.2 - UIA Automation:
   find-by-control-type --window K --control-type TYPE
 
 Examples:
-  peekaboo-win list-windows --keyword 记事�?  peekaboo-win inspect --window notepad --max-depth 3
-  peekaboo-win click-element --window notepad --name 文件 --dry-run
+  peekaboo-win list-windows --keyword 璁颁簨锟?  peekaboo-win inspect --window notepad --max-depth 3
+  peekaboo-win click-element --window notepad --name 鏂囦欢 --dry-run
   peekaboo-win press --key esc
   peekaboo-win screenshot --screen --out artifacts/screen.png
 ");
