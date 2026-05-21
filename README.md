@@ -81,7 +81,6 @@ peekaboo-win ocr --window "notepad" --lang eng --text "Save"
 
 ## V0.4 命令（Agent 自然语言任务）
 
-
 ```bash
 # 自然语言任务执行
 peekaboo-win agent --task "click 100 200"
@@ -99,14 +98,30 @@ peekaboo-win agent --task "复杂任务" --max-steps 3
 peekaboo-win agent --task "任务" --context "额外上下文"
 ```
 
-
 > Agent 基于规则解析，无 API Key 时也能工作。设置 `MINIMAX_API_KEY` 环境变量可启用 LLM 解析复杂任务。
+
+## V0.5 命令（HTTP API 服务）
+
+```bash
+# 启动 HTTP API 服务器
+peekaboo-win server --port 8080
+
+# API 调用示例
+curl http://localhost:8080/health
+curl http://localhost:8080/windows
+curl -X POST http://localhost:8080/click -d "{\"x\":100,\"y\":200}" -H "Content-Type: application/json"
+curl -X POST http://localhost:8080/agent -d "{\"task\":\"click 100 200\"}" -H "Content-Type: application/json"
+curl -X POST http://localhost:8080/type -d "{\"text\":\"hello world\"}" -H "Content-Type: application/json"
+```
+
+> HTTP API 供 OpenClaw/Hermes 等外部 Agent 驱动 Windows 桌面自动化。
+> 所有端点返回 JSON，支持 CORS 跨域请求。
 
 ## 版本路线
 
 - [x] V0.1: 窗口枚举 + 截图 + 鼠标键盘
 - [x] V0.2: UI Automation 控件树
 - [x] V0.3: OCR 文字识别兜底
-- [x] V0.4: LLM Agent Runtime（自然语言任务）← current
-- [ ] V0.5: HTTP API 服务（给 Hermes/OpenClaw 调用）
+- [x] V0.4: LLM Agent Runtime（自然语言任务）
+- [x] V0.5: HTTP API 服务（给 Hermes/OpenClaw 调用）← current
 - [ ] V0.6: AgentShield 安全门控
