@@ -1,0 +1,76 @@
+{
+  "version": "V0.6",
+  "codename": "VACP",
+  "full_name": "Vision-Action Closed-loop Planner",
+  "commit": "cdf7c17",
+  "date": "2026-05-23",
+  "status": "ACCEPTED",
+
+  "modules": {
+    "Perception": {
+      "UiElement.cs": "Screen State Graph G_t=(E_t,R_t,S_t) + UiElement + BoundingBox",
+      "ElementGroundingScore.cs": "4-factor grounding confidence (VisionConf/TextMatch/PositionPrior/TypeMatch), threshold 0.75"
+    },
+    "Planning": {
+      "ActionCandidate.cs": "5-factor action ranking (GoalRelevance/Grounding/StateProgress/Safety/History)",
+      "VacpPlanner.cs": "8-step VACP closed-loop engine",
+      "VacpTraceRecord.cs": "Per-step audit record with full fields",
+      "VacpTraceLogger.cs": "Trace persistence + benchmark report generator"
+    },
+    "Safety": {
+      "ActionRiskGate.cs": "5-dimension risk scoring, 3-tier gate (ALLOW/CONFIRM/BLOCK)"
+    },
+    "Verification": {
+      "BeforeAfterVerifier.cs": "4-dimension visual diff verification, 3-tier recovery"
+    },
+    "Input": {
+      "StableTyper.cs": "Human typing cadence 30-50ms/char"
+    }
+  },
+
+  "pipeline": [
+    "Screenshot Capture",
+    "Hybrid Screen Perception",
+    "Screen State Graph Builder",
+    "Action Candidate Generator",
+    "Element Grounding Score",
+    "Risk-Aware Action Gate",
+    "Stable Action Executor",
+    "Before-After Visual Verification",
+    "Recovery / Retry / Replan"
+  ],
+
+  "key_metrics_definitions": {
+    "Element_Grounding_Pass_Rate": "Elements selected by GPT Vision that pass GroundingScore >= 0.75",
+    "Step_Success_Rate": "Single-step actions where BeforeAfter Verifier returns SUCCESS",
+    "High_risk_Block_Rate": "High-risk actions (delete/transfer/send on bank/login/payment) that trigger BLOCK",
+    "Verification_Recovery_Rate": "Failed actions where retry/rescreenshot leads to eventual success"
+  },
+
+  "demo_evidence": {
+    "demo1_notepad_text_entry": "✅ Baseline closed-loop: grounding=0.90, risk=0.085, verification=0.873",
+    "demo2_popup_close": "✅ Complex UI: grounding=0.878, verification=0.808",
+    "demo3_web_form_fill": "✅ Multi-step: 4/4 complete, submit triggers CONFIRM (0.35)",
+    "demo4_high_risk_block": "✅ Risk gate: 3/3 high-risk blocked, 1 safe ALLOW, in-scope 100%",
+    "demo5_failed_action_replan": "✅ Recovery: first=0.34 FAILED, retry=0.81 SUCCESS"
+  },
+
+  "v0_6_vs_v0_5": {
+    "decision": "V0.5: single GPT suggestion | V0.6: multi-candidate ranking + risk gate",
+    "coordinate_stability": "V0.5: no guarantee | V0.6: GroundingScore threshold 0.75",
+    "risk_control": "V0.5: none | V0.6: 3-tier risk gate",
+    "execution_safety": "V0.5: raw click | V0.6: StableTyper 30-50ms",
+    "verification": "V0.5: none | V0.6: before-after visual diff",
+    "recovery": "V0.5: error+exit | V0.6: retry→replan→ask",
+    "audit": "V0.5: none | V0.6: VacpTraceLogger per-step json",
+    "system_type": "V0.5: automation tool | V0.6: trusted visual desktop Agent"
+  },
+
+  "v0_6_positioning": "Peekaboo-Win V0.6 将桌面自动化从"坐标执行"升级为"视觉感知—动作评分—风险门控—执行验证"的可信闭环 Agent。",
+
+  "next_steps": [
+    "V0.6.1: Evaluation & Trace Pack (20-case benchmark, README update)",
+    "V0.7: Visual Skill Memory (UI Pattern Memory + Phoenix-Evo integration)",
+    "V0.8: Hybrid Perception (UIA+OCR+GPT Vision fusion)"
+  ]
+}
