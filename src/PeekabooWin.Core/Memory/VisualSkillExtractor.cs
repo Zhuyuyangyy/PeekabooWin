@@ -2,94 +2,110 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using PeekabooWin.Core.Planning;
-using PeekabooWin.Core.Agent;
+using PeekabooWin.Core.Perception;
 
 namespace PeekabooWin.Core.Memory;
 
 /// <summary>
-/// Extracts a VisualSkill from a successful VACP trace record.
+/// Extracts a VisualSkill from a successful VACP trace.
 /// V0.7 Visual Skill Memory.
 /// </summary>
 public class VisualSkillExtractor
 {
     /// <summary>
-    /// Extract a VisualSkill from a completed, successful VACP trace.
-    /// Returns null if the trace is not suitable for skill extraction
-    /// (e.g., failed traces, or traces with too few steps).
+    /// Extract a VisualSkill from a completed VacpTaskTrace.
+    /// Returns null if the trace has no successful steps or is unsuitable.
     /// </summary>
-    public VisualSkill? Extract(VacpTraceRecord trace)
+    public VisualSkill? Extract(VacpTaskTrace taskTrace)
     {
-        if (trace == null || trace.Steps.Count == 0)
+        if (taskTrace == null || taskTrace.StepTraces.Count == 0)
             return null;
 
-        // Only extract from successful traces with 2+ meaningful steps
-        var meaningfulSteps = trace.Steps
-            .Where(s => s.Action != null && !s.Action.Contains("verify", StringComparison.OrdinalIgnoreCase))
+        // Only extract from overall-successful traces
+        if (!taskTrace.OverallSuccess)
+            return null;
+
+        // Collect meaningful (non-verify) actions
+        var actionSteps = taskTrace.StepTraces
+            .Where(s => s.ExecutionResult != "BLOCKED" &&
+                        s.VerificationOutcome != "FAILED")
             .ToList();
 
-        if (meaningfulSteps.Count < 1)
+        if (actionSteps.Count == 0)
             return null;
 
-        // Build trigger conditions from screen state at start
-        var firstStep = trace.Steps.First();
+        // Use first step as the trigger context
+        var firstStep = taskTrace.StepTraces[0];
         var triggers = new List<string>();
 
-        if (!string.IsNullOrEmpty(trace.TargetApp))
-            triggers.Add($"app={trace.TargetApp}");
-        if (firstStep.ScreenElements != null && firstStep.ScreenElements.Count > 0)
-            triggers.Add($"element_count={firstStep.ScreenElements.Count}");
+        if (firstStep.CandidateActions != null && firstStep.CandidateActions.Count > 0)
+            triggers.Add($"candidates={firstStep.CandidateActions.Count}");
 
-        var procedureSteps = meaningfulSteps
-            .Select(s => s.Action ?? "")
-            .Where(a => !string.IsNullOrEmpty(a))
+        var firstAction = firstStep.SelectedAction?.ActionType ?? firstStep.ExecutionResult;
+        if (!string.IsNullOrEmpty(firstAction))
+            triggers.Add($"first_action={firstAction}");
+
+        var procedureSteps = actionSteps
+            .Select(s => s.SelectedAction?.ActionType ?? s.ExecutionResult ?? "unknown")
+            .Where(a => !string.IsNullOrEmpty(a) && a != "unknown")
             .ToList();
 
-        // Determine screen type from UI elements
-        var screenType = InferScreenType(firstStep.ScreenElements);
+        var screenType = InferScreenType(firstStep.ScreenStateGraph);
+        var riskLevel = InferRiskLevel(taskTrace);
 
-        // Determine risk level from trace
-        var riskLevel = trace.RiskLevel switch
-        {
-            RiskLevel.L0 or RiskLevel.L1 => "L0",
-            RiskLevel.L2 => "L1",
-            _ => "L0"
-        };
+        var avgVerif = taskTrace.StepTraces
+            .Where(s => s.VerificationScore > 0)
+            .Select(s => s.VerificationScore)
+            .DefaultIfEmpty(1.0)
+            .Average();
 
         return new VisualSkill
         {
-            SkillId = $"vs_{trace.SessionId[..12]}",
-            Name = $"Skill: {trace.TaskGoal} on {trace.TargetApp}",
-            AppPattern = trace.TargetApp ?? "*",
+            SkillId = $"vs_{taskTrace.TaskId[..Math.Min(12, taskTrace.TaskId.Length)]}",
+            Name = $"Skill: {taskTrace.TaskDescription}",
+            AppPattern = "*",
             ScreenType = screenType,
             TriggerConditions = triggers,
             ProcedureSteps = procedureSteps,
             RiskLevel = riskLevel,
-            SuccessRate = trace.Steps.All(s => s.GroundTruthScore >= 0.8) ? 1.0 : 0.85,
+            SuccessRate = avgVerif >= 0.8 ? 1.0 : avgVerif,
             UsageCount = 1,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
     }
 
-    private static string InferScreenType(List<ScreenElement>? elements)
+    private static string InferScreenType(ScreenStateGraph? graph)
     {
-        if (elements == null || elements.Count == 0)
-            return "unknown";
+        if (graph == null) return "generic";
 
-        var types = elements
-            .Select(e => e.Role ?? e.ClassName ?? "")
-            .Where(t => !string.IsNullOrEmpty(t))
-            .ToList();
+        var type = graph.ScreenType ?? "";
+        if (!string.IsNullOrEmpty(type)) return type.ToLower();
 
-        if (types.Any(t => t.Contains("edit", StringComparison.OrdinalIgnoreCase) || t.Contains("text", StringComparison.OrdinalIgnoreCase)))
+        var labels = graph.Elements?
+            .Select(e => e.Label ?? "")
+            .Where(l => !string.IsNullOrEmpty(l))
+            .ToList() ?? [];
+
+        if (labels.Any(l => l.Contains("edit", StringComparison.OrdinalIgnoreCase) ||
+                           l.Contains("text", StringComparison.OrdinalIgnoreCase)))
             return "edit";
-        if (types.Any(t => t.Contains("button", StringComparison.OrdinalIgnoreCase)))
+        if (labels.Any(l => l.Contains("button", StringComparison.OrdinalIgnoreCase)))
             return "dialog";
-        if (types.Any(t => t.Contains("document", StringComparison.OrdinalIgnoreCase)))
-            return "document";
-        if (types.Any(t => t.Contains("web", StringComparison.OrdinalIgnoreCase) || t.Contains("browser", StringComparison.OrdinalIgnoreCase)))
+        if (labels.Any(l => l.Contains("web", StringComparison.OrdinalIgnoreCase) ||
+                           l.Contains("browser", StringComparison.OrdinalIgnoreCase)))
             return "web";
 
         return "generic";
+    }
+
+    private static string InferRiskLevel(VacpTaskTrace trace)
+    {
+        var hasBlocked = trace.StepTraces.Any(s => s.RiskGateDecision == "BLOCK");
+        var hasConfirm = trace.StepTraces.Any(s => s.RiskGateDecision == "CONFIRM");
+
+        if (hasBlocked) return "L2";
+        if (hasConfirm) return "L1";
+        return "L0";
     }
 }
