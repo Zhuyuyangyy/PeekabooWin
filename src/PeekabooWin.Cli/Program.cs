@@ -740,9 +740,19 @@ class Program
     static void PrintUsage()
     {
         Console.WriteLine(@"
-PeekabooWin - Windows Desktop Automation CLI (V0.5)
+PeekabooWin - Windows Desktop Automation CLI (V0.7)
 
 Usage: peekaboo-win <command> [options]
+
+V0.6 - VACP Trusted Execution:
+  click-rel --window K --x X --y Y  Click relative to window
+  is-focused [--window K]          Check focus state
+  find-on-screen TEXT              OCR find text on screen
+  ocr-click --text TEXT            Find text and click
+
+V0.7 - Visual Skill Memory:
+  skill-list                       List extracted visual skills
+  skill-replay --id ID [--window K]  Replay a saved skill
 
 V0.1 - Core:
   list-windows [--keyword K]    List all visible windows
