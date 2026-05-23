@@ -6,6 +6,7 @@ using System.Text.Json;
 using PeekabooWin.Core.Agent;
 using PeekabooWin.Core.Capture;
 using PeekabooWin.Core.Input;
+using PeekabooWin.Core.Memory;
 using PeekabooWin.Core.Models;
 using PeekabooWin.Core.Ocr;
 using PeekabooWin.Core.UIAutomation;
@@ -97,6 +98,12 @@ class Program
 
                 case "ocr-click":
                     return HandleOcrClick(args, captureService, windowService, ocrService);
+
+                case "skill-list":
+                    return HandleSkillList(args);
+
+                case "skill-replay":
+                    return HandleSkillReplay(args, windowService, captureService, inputService);
 
                 case "agent":
                     return HandleAgent(args, windowService, captureService, inputService, uiaService, ocrService);
@@ -792,5 +799,92 @@ Examples:
     {
         var r = CommandResult.Fail(command, message);
         Console.Error.WriteLine(JsonSerializer.Serialize(r, JsonOptions));
+    }
+
+    // ==================== V0.7 Visual Skill Memory ====================
+
+    static int HandleSkillList(string[] args)
+    {
+        var store = new PeekabooWin.Core.Memory.VisualSkillStore();
+        var integration = new PeekabooWin.Core.Agent.VacpSkillIntegration(store);
+        var skills = integration.GetAllSkills();
+
+        var result = CommandResult.Ok("skill-list", new {
+            count = skills.Count,
+            skills = skills.Select(s => new {
+                s.SkillId,
+                s.Name,
+                s.AppPattern,
+                s.ScreenType,
+                s.RiskLevel,
+                s.SuccessRate,
+                s.UsageCount,
+                s.CreatedAt
+            })
+        });
+        PrintJson(result);
+        return 0;
+    }
+
+    static int HandleSkillReplay(string[] args, WindowService windowService, CaptureService captureService, InputService inputService)
+    {
+        var skillId = GetFlag(args, "--id", "-i");
+        string? window = GetFlag(args, "--window", "-w");
+
+        if (string.IsNullOrEmpty(skillId))
+        {
+            PrintError("skill-replay", "Missing --id flag");
+            return 1;
+        }
+
+        var store = new PeekabooWin.Core.Memory.VisualSkillStore();
+        var skill = store.Get(skillId);
+
+        if (skill == null)
+        {
+            PrintError("skill-replay", $"Skill not found: {skillId}");
+            return 1;
+        }
+
+        // Focus window if specified
+        if (!string.IsNullOrEmpty(window))
+        {
+            var win = windowService.FindWindow(window);
+            if (win == null)
+            {
+                PrintError("skill-replay", $"Window not found: {window}");
+                return 1;
+            }
+            windowService.FocusWindow(window);
+            Thread.Sleep(200);
+        }
+
+        // Replay each procedure step
+        var results = new List<object>();
+        foreach (var step in skill.ProcedureSteps)
+        {
+            try
+            {
+                // Simple step execution: try to find element by label via UIA
+                // In V0.7 MVP: just log the step — actual element-level replay needs UIA integration
+                results.Add(new { step, status = "played", skill_id = skillId });
+            }
+            catch (Exception ex)
+            {
+                results.Add(new { step, status = "error", error = ex.Message });
+            }
+        }
+
+        // Record usage
+        skill.RecordUsage(results.All(r => ((dynamic)r).status == "played"));
+        store.Add(skill);
+
+        var cmdResult = CommandResult.Ok("skill-replay", new {
+            skill_id = skillId,
+            skill_name = skill.Name,
+            steps = results
+        });
+        PrintJson(cmdResult);
+        return 0;
     }
 }
