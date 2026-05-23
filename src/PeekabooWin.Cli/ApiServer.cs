@@ -22,6 +22,7 @@ public class ApiServer
     private readonly CaptureService _captureService;
     private readonly InputService _inputService;
     private readonly UIAutomationService _uiaService;
+    private readonly OcrService _ocrService;
     private readonly JsonSerializerOptions _jsonOptions;
     private CancellationTokenSource? _cts;
     private Task? _serverTask;
@@ -39,6 +40,7 @@ public class ApiServer
         _captureService = new CaptureService(_windowService);
         _inputService = new InputService();
         _uiaService = new UIAutomationService(_windowService);
+        _ocrService = new OcrService();
 
         _jsonOptions = new JsonSerializerOptions
         {
@@ -265,7 +267,7 @@ public class ApiServer
                     return;
                 }
 
-                var agentService = new AgentService(_windowService, _captureService, _inputService, _uiaService);
+                var agentService = new AgentService(_windowService, _captureService, _inputService, _uiaService, _ocrService);
                 var agentReq = new AgentTaskRequest
                 {
                     Task = req.task,

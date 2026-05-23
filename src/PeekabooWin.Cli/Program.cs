@@ -1,4 +1,6 @@
-﻿using System.Text;
+﻿using System.Linq;
+using System.Runtime.InteropServices;
+using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using PeekabooWin.Core.Agent;
@@ -36,6 +38,7 @@ class Program
         var captureService = new CaptureService(windowService);
         var inputService = new InputService();
         var uiaService = new UIAutomationService(windowService);
+        var ocrService = new OcrService();
 
         string command = args[0].ToLower();
 
@@ -83,8 +86,20 @@ class Program
                 case "ocr":
                     return HandleOcr(args, captureService, windowService);
 
+                case "click-rel":
+                    return HandleClickRel(args, windowService);
+
+                case "is-focused":
+                    return HandleIsFocused(args, windowService);
+
+                case "find-on-screen":
+                    return HandleFindOnScreen(args, captureService, windowService, ocrService);
+
+                case "ocr-click":
+                    return HandleOcrClick(args, captureService, windowService, ocrService);
+
                 case "agent":
-                    return HandleAgent(args, windowService, captureService, inputService, uiaService);
+                    return HandleAgent(args, windowService, captureService, inputService, uiaService, ocrService);
 
                 case "server":
                     return HandleServer(args);
@@ -526,9 +541,143 @@ class Program
         }
     }
 
+    // ==================== V0.6 Enhanced Actions ====================
+    // click-rel, is-focused, find-on-screen, ocr-click
+
+    static int HandleClickRel(string[] args, WindowService windowService)
+    {
+        var window = GetFlag(args, "--window", "-w") ?? GetFlag(args, "--win", "-W");
+        var xStr = GetFlag(args, "--x", "-x");
+        var yStr = GetFlag(args, "--y", "-y");
+
+        if (string.IsNullOrEmpty(window)) { PrintError("click-rel", "Missing --window"); return 1; }
+        if (string.IsNullOrEmpty(xStr) || string.IsNullOrEmpty(yStr)) { PrintError("click-rel", "Missing --x or --y"); return 1; }
+        if (!int.TryParse(xStr, out int relX) || !int.TryParse(yStr, out int relY)) { PrintError("click-rel", "--x and --y must be integers"); return 1; }
+
+        var win = windowService.FindWindow(window);
+        if (win == null) { PrintError("click-rel", $"Window not found: {window}"); return 1; }
+
+        int absX = win.Rect.X + relX;
+        int absY = win.Rect.Y + relY;
+        var inputService = new InputService();
+        var r = inputService.Click(absX, absY);
+        var result = CommandResult.Ok("click-rel", new { abs_x = absX, abs_y = absY, rel_x = relX, rel_y = relY, window = win.Title, rect = win.Rect, success = r.Success, error = r.Error });
+        PrintJson(result);
+        return r.Success ? 0 : 1;
+    }
+
+    static int HandleIsFocused(string[] args, WindowService windowService)
+    {
+        var window = GetFlag(args, "--window", "-w") ?? "";
+        var foregroundHwnd = GetForegroundWindow();
+        var allWindows = windowService.ListWindows(null);
+        var focusedWin = allWindows.FirstOrDefault(w => w.Handle == foregroundHwnd.ToInt64());
+
+        if (focusedWin == null)
+        {
+            var result = CommandResult.Ok("is-focused", new { foreground_handle = foregroundHwnd.ToInt64(), tracked = false });
+            PrintJson(result);
+            return 0;
+        }
+
+        var isMatch = string.IsNullOrEmpty(window) || focusedWin.Title.Contains(window, StringComparison.OrdinalIgnoreCase);
+        var r = CommandResult.Ok("is-focused", new { focused_window = focusedWin.Title, focused_pid = focusedWin.ProcessId, matches_query = isMatch, query = window });
+        PrintJson(r);
+        return isMatch ? 0 : 1;
+    }
+
+    static int HandleFindOnScreen(string[] args, CaptureService captureService, WindowService windowService, OcrService ocrService)
+    {
+        var window = GetFlag(args, "--window", "-w");
+        var text = GetFlag(args, "--text", "-t");
+
+        if (string.IsNullOrEmpty(text)) { PrintError("find-on-screen", "Missing --text"); return 1; }
+
+        var outPath = Path.Combine(Path.GetTempPath(), $"fos_{Guid.NewGuid():N}.png");
+        CaptureResult cap;
+        if (!string.IsNullOrEmpty(window))
+        {
+            cap = captureService.CaptureWindow(window, outPath);
+        }
+        else
+        {
+            cap = captureService.CaptureScreen(outPath);
+        }
+        if (!cap.Success) { PrintError("find-on-screen", $"Screenshot failed: {cap.Error}"); return 1; }
+
+        var ocrResult = ocrService.RecognizeImageAsync(outPath).GetAwaiter().GetResult();
+        if (!string.IsNullOrEmpty(ocrResult.Error)) { PrintError("find-on-screen", $"OCR error: {ocrResult.Error}"); return 1; }
+
+        var center = ocrService.FindWordCenter(ocrResult, text);
+        if (center == null)
+        {
+            var r = CommandResult.Ok("find-on-screen", new { found = false, text, recognized_snippet = ocrResult.Text.Length > 200 ? ocrResult.Text.Substring(0, 200) : ocrResult.Text });
+            PrintJson(r);
+            return 1;
+        }
+
+        int screenX = center.Value.x;
+        int screenY = center.Value.y;
+        if (!string.IsNullOrEmpty(window))
+        {
+            var win = windowService.FindWindow(window);
+            if (win != null) { screenX += win.Rect.X; screenY += win.Rect.Y; }
+        }
+
+        try { File.Delete(outPath); } catch { }
+        var result = CommandResult.Ok("find-on-screen", new { found = true, text, screen_x = screenX, screen_y = screenY, rel_x = center.Value.x, rel_y = center.Value.y });
+        PrintJson(result);
+        return 0;
+    }
+
+    static int HandleOcrClick(string[] args, CaptureService captureService, WindowService windowService, OcrService ocrService)
+    {
+        var window = GetFlag(args, "--window", "-w");
+        var text = GetFlag(args, "--text", "-t");
+
+        if (string.IsNullOrEmpty(text)) { PrintError("ocr-click", "Missing --text"); return 1; }
+
+        var outPath = Path.Combine(Path.GetTempPath(), $"oc_{Guid.NewGuid():N}.png");
+        CaptureResult cap;
+        if (!string.IsNullOrEmpty(window))
+        {
+            cap = captureService.CaptureWindow(window, outPath);
+        }
+        else
+        {
+            cap = captureService.CaptureScreen(outPath);
+        }
+        if (!cap.Success) { PrintError("ocr-click", $"Screenshot failed: {cap.Error}"); return 1; }
+
+        var ocrResult = ocrService.RecognizeImageAsync(outPath).GetAwaiter().GetResult();
+        if (!string.IsNullOrEmpty(ocrResult.Error)) { PrintError("ocr-click", $"OCR error: {ocrResult.Error}"); return 1; }
+
+        var center = ocrService.FindWordCenter(ocrResult, text);
+        if (center == null) { PrintError("ocr-click", $"Text '{text}' not found"); return 1; }
+
+        int screenX = center.Value.x;
+        int screenY = center.Value.y;
+        if (!string.IsNullOrEmpty(window))
+        {
+            var win = windowService.FindWindow(window);
+            if (win != null) { screenX += win.Rect.X; screenY += win.Rect.Y; }
+        }
+
+        var inputService = new InputService();
+        inputService.Click(screenX, screenY);
+        try { File.Delete(outPath); } catch { }
+
+        var result = CommandResult.Ok("ocr-click", new { text, clicked_x = screenX, clicked_y = screenY, rel_x = center.Value.x, rel_y = center.Value.y });
+        PrintJson(result);
+        return 0;
+    }
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
     // ==================== V0.4 Agent Handler ====================
 
-    static int HandleAgent(string[] args, WindowService windowService, CaptureService captureService, InputService inputService, UIAutomationService uiaService)
+    static int HandleAgent(string[] args, WindowService windowService, CaptureService captureService, InputService inputService, UIAutomationService uiaService, OcrService ocrService)
     {
         string? task = GetFlag(args, "--task", "-t");
         int maxSteps = int.TryParse(GetFlag(args, "--max-steps", "-m") ?? "5", out var ms) ? ms : 5;
@@ -541,7 +690,7 @@ class Program
             return 1;
         }
 
-        var agentService = new AgentService(windowService, captureService, inputService, uiaService);
+        var agentService = new AgentService(windowService, captureService, inputService, uiaService, ocrService);
         var request = new AgentTaskRequest
         {
             Task = task,

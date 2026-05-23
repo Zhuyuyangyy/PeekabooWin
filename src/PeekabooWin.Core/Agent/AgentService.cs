@@ -1,5 +1,8 @@
 using System.Diagnostics;
+using System.IO;
+using System.Linq;
 using System.Net.Http;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using PeekabooWin.Core.Capture;
@@ -27,10 +30,14 @@ namespace PeekabooWin.Core.Agent;
 /// </summary>
 public class AgentService
 {
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
     private readonly WindowService _windowService;
     private readonly CaptureService _captureService;
     private readonly InputService _inputService;
     private readonly UIAutomationService _uiaService;
+    private readonly OcrService _ocrService;
     private readonly HttpClient _httpClient;
 
     private const string MINIMAX_API = "https://api.minimax.chat/v1/chat/completions";
@@ -43,6 +50,10 @@ public class AgentService
         new ToolDescriptor { Name = "focus-window", Description = "Bring a window to foreground by title keyword.", Parameters = new() { ["title"] = "window title keyword (partial match)" } },
         new ToolDescriptor { Name = "screenshot", Description = "Capture screenshot of full screen or a specific window.", Parameters = new() { ["out"] = "output PNG path", ["window"] = "optional window title keyword" } },
         new ToolDescriptor { Name = "click", Description = "Click at screen coordinates.", Parameters = new() { ["x"] = "X coordinate", ["y"] = "Y coordinate" } },
+        new ToolDescriptor { Name = "click-rel", Description = "Click at window-relative coordinates.", Parameters = new() { ["window"] = "window title keyword", ["x"] = "relative X from window left", ["y"] = "relative Y from window top" } },
+        new ToolDescriptor { Name = "is-focused", Description = "Check if a window has keyboard focus.", Parameters = new() { ["window"] = "window title keyword to check" } },
+        new ToolDescriptor { Name = "find-on-screen", Description = "Use OCR to find text and return screen coordinates.", Parameters = new() { ["window"] = "optional window title", ["text"] = "text to find" } },
+        new ToolDescriptor { Name = "ocr-click", Description = "OCR find text then click it in one step.", Parameters = new() { ["window"] = "optional window title", ["text"] = "text to find and click" } },
         new ToolDescriptor { Name = "type", Description = "Type text into the focused window.", Parameters = new() { ["text"] = "text to type" } },
         new ToolDescriptor { Name = "press", Description = "Press a keyboard key (enter/esc/tab/backspace/delete).", Parameters = new() { ["key"] = "key name" } },
         new ToolDescriptor { Name = "hotkey", Description = "Execute keyboard hotkey combination.", Parameters = new() { ["keys"] = "e.g. ctrl+c, alt+f4, win+r" } },
@@ -52,12 +63,13 @@ public class AgentService
         new ToolDescriptor { Name = "ocr", Description = "Recognize text in a screenshot. Can search for text and click.", Parameters = new() { ["window"] = "optional window title keyword", ["text"] = "optional text to search for and click" } },
     };
 
-    public AgentService(WindowService windowService, CaptureService captureService, InputService inputService, UIAutomationService uiaService)
+    public AgentService(WindowService windowService, CaptureService captureService, InputService inputService, UIAutomationService uiaService, OcrService ocrService)
     {
         _windowService = windowService;
         _captureService = captureService;
         _inputService = inputService;
         _uiaService = uiaService;
+        _ocrService = ocrService;
         _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
     }
 
@@ -473,6 +485,125 @@ Output: [
                 var y = int.Parse(args["y"]);
                 _inputService.Click(x, y);
                 return (true, $"Clicked at ({x}, {y})");
+            }
+
+            case "click-rel":
+            {
+                // Click at window-relative coordinates
+                var window = args["window"];
+                var relX = int.Parse(args["x"]);
+                var relY = int.Parse(args["y"]);
+                var win = _windowService.FindWindow(window);
+                if (win == null)
+                    return (false, $"Window not found: {window}");
+                var absX = win.Rect.X + relX;
+                var absY = win.Rect.Y + relY;
+                _inputService.Click(absX, absY);
+                return (true, $"Clicked rel({relX}, {relY}) → abs({absX}, {absY}) in window '{win.Title}'");
+            }
+
+            case "is-focused":
+            {
+                // Check if the specified window is currently focused
+                var windowKeyword = args.GetValueOrDefault("window", "");
+                var foregroundHwnd = GetForegroundWindow();
+                var allWindows = _windowService.ListWindows(null);
+                var focusedWin = allWindows.FirstOrDefault(w => w.Handle == foregroundHwnd.ToInt64());
+                if (focusedWin == null)
+                    return (true, $"Foreground window handle: {foregroundHwnd}, not tracked");
+                var isMatch = string.IsNullOrEmpty(windowKeyword)
+                    || focusedWin.Title.Contains(windowKeyword, StringComparison.OrdinalIgnoreCase);
+                return (true, $"Focused: '{focusedWin.Title}' | matches '{windowKeyword}': {isMatch}");
+            }
+
+            case "find-on-screen":
+            {
+                // Use OCR to find text and return screen absolute coordinates
+                var window = args.GetValueOrDefault("window");
+                var text = args["text"];
+                var outPath = Path.Combine(Path.GetTempPath(), $"ocr_find_{Guid.NewGuid()}.png");
+
+                CaptureResult cap;
+                if (!string.IsNullOrEmpty(window))
+                {
+                    var win = _windowService.FindWindow(window);
+                    if (win == null) return (false, $"Window not found: {window}");
+                    cap = _captureService.CaptureWindow(win.Handle.ToString(), outPath);
+                }
+                else
+                {
+                    cap = _captureService.CaptureScreen(outPath);
+                }
+                if (!cap.Success) return (false, $"Screenshot failed: {cap.Error}");
+
+                var ocrResult = _ocrService.RecognizeImageAsync(outPath).GetAwaiter().GetResult();
+                if (!string.IsNullOrEmpty(ocrResult.Error))
+                    return (false, $"OCR error: {ocrResult.Error}");
+
+                var center = _ocrService.FindWordCenter(ocrResult, text);
+                if (center == null)
+                    return (false, $"Text '{text}' not found. Recognized: {ocrResult.Text.Substring(0, Math.Min(100, ocrResult.Text.Length))}");
+
+                // If captured from window, add window offset
+                int screenX = center.Value.x;
+                int screenY = center.Value.y;
+                if (!string.IsNullOrEmpty(window))
+                {
+                    var win = _windowService.FindWindow(window);
+                    if (win != null)
+                    {
+                        screenX += win.Rect.X;
+                        screenY += win.Rect.Y;
+                    }
+                }
+
+                try { File.Delete(outPath); } catch { }
+                return (true, $"Found '{text}' at screen({screenX}, {screenY}) [window-relative: ({center.Value.x}, {center.Value.y})]");
+            }
+
+            case "ocr-click":
+            {
+                // OCR find text, then click it — two-step as one
+                var window = args.GetValueOrDefault("window");
+                var text = args["text"];
+                var outPath = Path.Combine(Path.GetTempPath(), $"ocr_click_{Guid.NewGuid()}.png");
+
+                CaptureResult cap;
+                if (!string.IsNullOrEmpty(window))
+                {
+                    var win = _windowService.FindWindow(window);
+                    if (win == null) return (false, $"Window not found: {window}");
+                    cap = _captureService.CaptureWindow(win.Handle.ToString(), outPath);
+                }
+                else
+                {
+                    cap = _captureService.CaptureScreen(outPath);
+                }
+                if (!cap.Success) return (false, $"Screenshot failed: {cap.Error}");
+
+                var ocrResult = _ocrService.RecognizeImageAsync(outPath).GetAwaiter().GetResult();
+                if (!string.IsNullOrEmpty(ocrResult.Error))
+                    return (false, $"OCR error: {ocrResult.Error}");
+
+                var center = _ocrService.FindWordCenter(ocrResult, text);
+                if (center == null)
+                    return (false, $"Text '{text}' not found on screen");
+
+                int screenX = center.Value.x;
+                int screenY = center.Value.y;
+                if (!string.IsNullOrEmpty(window))
+                {
+                    var win = _windowService.FindWindow(window);
+                    if (win != null)
+                    {
+                        screenX += win.Rect.X;
+                        screenY += win.Rect.Y;
+                    }
+                }
+
+                _inputService.Click(screenX, screenY);
+                try { File.Delete(outPath); } catch { }
+                return (true, $"OCR-click '{text}' at screen({screenX}, {screenY})");
             }
 
             case "type":
