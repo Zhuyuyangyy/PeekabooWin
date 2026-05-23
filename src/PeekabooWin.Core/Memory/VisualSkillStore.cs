@@ -48,6 +48,56 @@ public class VisualSkillStore
         Save();
     }
 
+    /// <summary>
+    /// Seed the store with a Notepad demo skill if the store is empty.
+    /// </summary>
+    public void SeedDemo()
+    {
+        if (_skills.Count > 0) return;
+
+        var notepadSkill = new VisualSkill
+        {
+            SkillId = "vs_notepad_edit",
+            Name = "Notepad Text Entry",
+            AppPattern = "notepad*",
+            ScreenType = "edit",
+            TriggerConditions = [
+                "candidates=5",
+                "first_action=type",
+                "element_labels=Edit,Text Editor"
+            ],
+            ProcedureSteps = ["type", "verify"],
+            RiskLevel = "L0",
+            SuccessRate = 1.0,
+            UsageCount = 3,
+            CreatedAt = DateTime.UtcNow.AddDays(-1),
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        var dialogSkill = new VisualSkill
+        {
+            SkillId = "vs_dialog_confirm",
+            Name = "Dialog Confirm/Cancel",
+            AppPattern = "*",
+            ScreenType = "dialog",
+            TriggerConditions = [
+                "candidates=2",
+                "first_action=click",
+                "element_labels=OK,Cancel,Yes,No"
+            ],
+            ProcedureSteps = ["click"],
+            RiskLevel = "L1",
+            SuccessRate = 0.95,
+            UsageCount = 5,
+            CreatedAt = DateTime.UtcNow.AddDays(-2),
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        _skills.Add(notepadSkill);
+        _skills.Add(dialogSkill);
+        Save();
+    }
+
     public List<VisualSkill> Search(string appPattern, string screenType, int top = 5)
     {
         return _skills
@@ -82,7 +132,6 @@ public class VisualSkillStore
 
     private static bool WildcardMatch(string pattern, string value)
     {
-        // Simple wildcard: * matches anything
         if (pattern == "*") return true;
         if (pattern.Contains('*'))
         {

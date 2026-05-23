@@ -105,6 +105,9 @@ class Program
                 case "skill-replay":
                     return HandleSkillReplay(args, windowService, captureService, inputService);
 
+                case "skill-seed":
+                    return HandleSkillSeed(args);
+
                 case "agent":
                     return HandleAgent(args, windowService, captureService, inputService, uiaService, ocrService);
 
@@ -753,6 +756,7 @@ V0.6 - VACP Trusted Execution:
 V0.7 - Visual Skill Memory:
   skill-list                       List extracted visual skills
   skill-replay --id ID [--window K]  Replay a saved skill
+  skill-seed                       Seed demo skills (Notepad + Dialog)
 
 V0.1 - Core:
   list-windows [--keyword K]    List all visible windows
@@ -895,6 +899,18 @@ Examples:
             steps = results
         });
         PrintJson(cmdResult);
+        return 0;
+    }
+
+    static int HandleSkillSeed(string[] args)
+    {
+        var store = new PeekabooWin.Core.Memory.VisualSkillStore();
+        store.SeedDemo();
+        var result = CommandResult.Ok("skill-seed", new {
+            message = "Demo skills seeded (Notepad Text Entry + Dialog Confirm)",
+            count = store.GetAll().Count
+        });
+        PrintJson(result);
         return 0;
     }
 }
