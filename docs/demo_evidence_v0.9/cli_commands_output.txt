@@ -1,0 +1,249 @@
+﻿=== skill-seed ===
+{
+  "success": true,
+  "command": "skill-seed",
+  "data": {
+    "message": "Demo skills seeded (Notepad Text Entry + Dialog Confirm)",
+    "count": 2
+  },
+  "error": null,
+  "timestamp": "2026-05-25T18:50:51.4799697Z"
+}
+
+=== skill-list ===
+{
+  "success": true,
+  "command": "skill-list",
+  "data": {
+    "count": 2,
+    "skills": [
+      {
+        "skillId": "vs_notepad_edit",
+        "name": "Notepad Text Entry",
+        "appPattern": "notepad*",
+        "screenType": "edit",
+        "riskLevel": "L0",
+        "successRate": 1,
+        "usageCount": 3,
+        "createdAt": "2026-05-24T14:16:56.7346146Z"
+      },
+      {
+        "skillId": "vs_dialog_confirm",
+        "name": "Dialog Confirm/Cancel",
+        "appPattern": "*",
+        "screenType": "dialog",
+        "riskLevel": "L1",
+        "successRate": 0.95,
+        "usageCount": 5,
+        "createdAt": "2026-05-23T14:16:56.7346824Z"
+      }
+    ]
+  },
+  "error": null,
+  "timestamp": "2026-05-25T18:50:51.6660886Z"
+}
+
+=== skill-search ===
+{
+  "success": true,
+  "command": "skill-search",
+  "data": {
+    "query": "click confirm",
+    "app_pattern": null,
+    "results": [
+      {
+        "skillId": "vs_dialog_confirm",
+        "name": "Dialog Confirm/Cancel",
+        "appPattern": "*",
+        "screenType": "dialog",
+        "riskLevel": "L1",
+        "usageCount": 5,
+        "scope": null,
+        "score": {
+          "appMatch": 1,
+          "textMatch": 0.5,
+          "actionSequenceMatch": 1,
+          "riskMatch": 1,
+          "recencyFactor": 0.7781512503836435,
+          "total": 0.8528151250383644,
+          "isUsable": true
+        },
+        "reason": "app=1.00 text=0.50 action=1.00 risk=1.00 recency=0.78"
+      },
+      {
+        "skillId": "vs_notepad_edit",
+        "name": "Notepad Text Entry",
+        "appPattern": "notepad*",
+        "screenType": "edit",
+        "riskLevel": "L0",
+        "usageCount": 3,
+        "scope": null,
+        "score": {
+          "appMatch": 0,
+          "textMatch": 0.5,
+          "actionSequenceMatch": 0,
+          "riskMatch": 1,
+          "recencyFactor": 0.6020599913279623,
+          "total": 0.33520599913279625,
+          "isUsable": false
+        },
+        "reason": "text=0.50 risk=1.00 recency=0.60"
+      }
+    ]
+  },
+  "error": null,
+  "timestamp": "2026-05-25T18:50:51.8655302Z"
+}
+
+=== skill-search-context ===
+{
+  "success": true,
+  "command": "skill-search-context",
+  "data": {
+    "query": "type text",
+    "window_title": "notepad",
+    "app_profile": null,
+    "anchor_candidates": [],
+    "window_signature": {
+      "windowTitle": "",
+      "processName": "",
+      "windowType": "",
+      "inputMode": "",
+      "riskDomain": "",
+      "capturedAt": "2026-05-25T18:50:52.0531784Z"
+    },
+    "results": [
+      {
+        "skillId": "vs_dialog_confirm",
+        "name": "Dialog Confirm/Cancel",
+        "appPattern": "*",
+        "screenType": "dialog",
+        "riskLevel": "L1",
+        "scope": null,
+        "score": {
+          "total": 0.6528151250383643,
+          "isUsable": true
+        },
+        "reason": "app=1.00 text=0.50 risk=1.00 recency=0.78"
+      },
+      {
+        "skillId": "vs_notepad_edit",
+        "name": "Notepad Text Entry",
+        "appPattern": "notepad*",
+        "screenType": "edit",
+        "riskLevel": "L0",
+        "scope": null,
+        "score": {
+          "total": 0.5352059991327962,
+          "isUsable": false
+        },
+        "reason": "text=0.50 action=1.00 risk=1.00 recency=0.60"
+      }
+    ]
+  },
+  "error": null,
+  "timestamp": "2026-05-25T18:50:52.5550865Z"
+}
+
+=== list-windows ===
+{
+  "success": true,
+  "command": "list-windows",
+  "data": {
+    "windows": [
+      {
+        "id": 329970,
+        "title": "C:\\Windows\\system32\\cmd.exe ",
+        "process": "WindowsTerminal",
+        "process_id": 7952,
+        "class_name": "CASCADIA_HOSTING_WINDOW_CLASS",
+        "rect": {
+          "x": 329,
+          "y": 175,
+          "width": 1168,
+          "height": 605
+        },
+        "visible": true,
+        "enabled": true
+      },
+      {
+        "id": 133784,
+        "title": "Claude",
+        "process": "claude",
+        "process_id": 21032,
+        "class_name": "Chrome_WidgetWin_1",
+        "rect": {
+          "x": -29,
+          "y": 0,
+          "width": 842,
+          "height": 821
+        },
+        "visible": true,
+        "enabled": true
+      },
+      {
+        "id": 132020,
+        "title": "Windows 杈撳叆浣撻獙",
+        "process": "TextInputHost",
+        "process_id": 16404,
+        "class_name": "Windows.UI.Core.CoreWindow",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 1707,
+          "height": 1067
+        },
+        "visible": true,
+        "enabled": true
+      },
+      {
+        "id": 1641624,
+        "title": "璁剧疆",
+        "process": "SystemSettings",
+        "process_id": 29192,
+        "class_name": "Windows.UI.Core.CoreWindow",
+        "rect": {
+          "x": 0,
+          "y": 1,
+          "width": 1512,
+          "height": 684
+        },
+        "visible": true,
+        "enabled": true
+      },
+      {
+        "id": 3017968,
+        "title": "璁剧疆",
+        "process": "ApplicationFrameHost",
+        "process_id": 12712,
+        "class_name": "ApplicationFrameWindow",
+        "rect": {
+          "x": 59,
+          "y": 275,
+          "width": 1527,
+          "height": 692
+        },
+        "visible": true,
+        "enabled": true
+      },
+      {
+        "id": 65912,
+        "title": "Program Manager",
+        "process": "explorer",
+        "process_id": 10516,
+        "class_name": "Progman",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 1707,
+          "height": 1067
+        },
+        "visible": true,
+        "enabled": true
+      }
+    ]
+  },
+  "error": null,
+  "timestamp": "2026-05-25T18:50:52.7083381Z"
+}
+
