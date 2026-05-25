@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -21,7 +21,7 @@ public class NegativeTransferGuard
 
     private static readonly HashSet<(string, string)> ForbiddenTransfers = new()
     {
-        ("neutral","payment"),("external_ai_chat","payment"),("external_ai_chat","admin"),("neutral","admin"),
+        ("external_ai_chat","payment"),("external_ai_chat","admin"),
     };
 
     public GuardResult Evaluate(GuardContext ctx)
