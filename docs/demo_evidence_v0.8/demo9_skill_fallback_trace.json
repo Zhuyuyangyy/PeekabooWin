@@ -1,0 +1,71 @@
+{
+  "demo": "demo9_skill_fallback",
+  "title": "OCR First Failure → Skill-Guided Fallback → Success",
+
+  "scenario": "click submit in chrome with noisy OCR",
+
+  "initial_ocr": {
+    "text_recovered": "Submi",
+    "confidence": 0.12,
+    "status": "low_confidence"
+  },
+
+  "skill_search": {
+    "query": "click submit in chrome",
+    "app_pattern": "chrome",
+    "results": [
+      {
+        "skill_id": "vs_chrome_form_submit",
+        "name": "Chrome Web Form Submit",
+        "app_pattern": "chrome*",
+        "screen_type": "web-form",
+        "risk_level": "L1",
+        "usage_count": 4,
+        "score": {
+          "app_match": 1.0,
+          "text_match": 0.33,
+          "action_sequence_match": 1.0,
+          "risk_match": 1.0,
+          "recency_factor": 0.70,
+          "total": 0.87,
+          "is_usable": true
+        }
+      }
+    ]
+  },
+
+  "skill_hint_injected": true,
+  "hint_content": {
+    "suggested_elements": ["Submit", "submit", "button"],
+    "suggested_action_types": ["click"],
+    "preferred_risk_level": "L1"
+  },
+
+  "vacp_execution": {
+    "skipped_by_skill": false,
+    "ocr_confidence": 0.12,
+    "skill_hint_used": true,
+    "element_found_via_hint": true,
+    "action": "click",
+    "target": "Submit button",
+    "verification": "SUCCESS"
+  },
+
+  "comparison": {
+    "without_skill": {
+      "candidates_found": 0,
+      "reason": "OCR text too noisy, no element match"
+    },
+    "with_skill": {
+      "candidates_found": 3,
+      "skill_hint_elevated": "Submit button",
+      "verification": "SUCCESS"
+    }
+  },
+
+  "policy_filter": {
+    "all_results_count": 1,
+    "usable_count": 1,
+    "filter_passed": true
+  }
+}

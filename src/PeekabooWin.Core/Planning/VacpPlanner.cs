@@ -1,6 +1,7 @@
 using System.IO;
 using PeekabooWin.Core.Capture;
 using PeekabooWin.Core.Input;
+using PeekabooWin.Core.Memory;
 using PeekabooWin.Core.Perception;
 using PeekabooWin.Core.Planning;
 using PeekabooWin.Core.Safety;
@@ -278,6 +279,9 @@ public class VacpRequest
     public CaptureService ScreenCaptureService { get; set; } = null!;
     public IVisionClient VisionClient { get; set; } = null!;
     public InputService InputService { get; set; } = null!;
+
+    // V0.8 Skill-Guided Execution: hint from matched skill influences VACP candidate ranking
+    public SkillHint? SkillHint { get; set; }
 }
 
 public class VacpResult

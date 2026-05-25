@@ -8,14 +8,19 @@ using PeekabooWin.Core.Planning;
 namespace PeekabooWin.Core.Agent;
 
 /// <summary>
-/// V0.7 VacpPlanner with Visual Skill Memory integration.
+/// V0.8 VacpPlanner with Skill-Guided Execution.
 ///
-/// Before planning: checks skill store for matching (app+screen).
-///   → Hit with high confidence: return SkillPlanResult (skip full VACP)
-///   → Miss: proceed with normal VACP pipeline
+/// Pipeline (V0.8):
+///   STEP 0: SkillSearch → score all skills against task
+///           Filter by execution policy (CanUseSkill)
+///           If best score >= 0.7 → inject SkillHint into VacpRequest
+///   STEP 1: Normal VACP execution (WITH skill hints if available)
+///           VACP uses hints to prioritize candidate elements/actions
+///           VACP is NEVER bypassed by skills in V0.8
+///   STEP 2: On success → extract skill from trace, store
 ///
-/// After successful execution:
-///   → Extract skill → Store
+/// V0.7 had skill short-circuit (skip VACP on high-confidence hit).
+/// V0.8 NEVER skips VACP — skill influences ranking, not execution.
 /// </summary>
 public class VacpPlannerWithSkills
 {
@@ -29,47 +34,82 @@ public class VacpPlannerWithSkills
     }
 
     /// <summary>
-    /// Plan with skill memory — checks store before VACP, extracts after success.
+    /// Plan with skill-guided execution (V0.8).
+    /// Always runs VACP; skill influences planning via hints.
     /// </summary>
     public async Task<VacpSkillResult> PlanWithSkills(VacpRequest request, string? appPattern = null)
     {
         var result = new VacpSkillResult();
 
-        // Step 0: Skill lookup before planning
+        // STEP 0: Skill-Guided Retrieval (NEW in V0.8)
+        var screenType = InferScreenType(request.Task);
+        var searchResults = _skills.Search(request.Task, appPattern, null, null);
+        result.SkillSearchResults = searchResults;
+
+        // Filter by execution policy
+        var usable = searchResults.Where(r => _skills.Policy.CanUseSkill(r, request.Task)).ToList();
+        result.UsableSkills = usable;
+
+        // Get best candidate
+        var best = usable.FirstOrDefault();
+        if (best != null && best.Score.Total >= 0.7)
+        {
+            result.TopSkillCandidate = best.Skill;
+            result.TopSkillScore = best.Score;
+            // Inject skill as HINT into VACP — NOT a bypass
+            request.SkillHint = CreateSkillHint(best.Skill);
+        }
+
+        // STEP 1: Normal VACP execution (WITH skill hints if available)
+        var vacpResult = await _planner.Execute闭环(request);
+        result.VacpResult = vacpResult;
+        result.Successful = vacpResult.Success;
+        result.SkippedBySkill = false; // V0.8: NEVER skip VACP
+        result.FinalMessage = vacpResult.Success
+            ? $"Executed with skill guidance (confidence: {best?.Score.Total:F2})"
+            : vacpResult.FinalMessage;
+
+        // STEP 2: On success, extract and store skill
+        if (vacpResult.Success)
+            _skills.AfterSuccess(ToTaskTrace(request.Task, vacpResult));
+
+        return result;
+    }
+
+    // ===== V0.7 backward-compatible PlanWithSkills (legacy) =====
+    public async Task<VacpSkillResult> PlanWithSkillsLegacy(VacpRequest request, string? appPattern = null)
+    {
+        var result = new VacpSkillResult();
+
         var screenType = InferScreenType(request.Task);
         var match = _skills.BeforePlanning(appPattern ?? "*", screenType);
         result.SkillMatch = match;
 
         if (match != null && match.CanSkipVision)
         {
-            // Skill hit: short-circuit VACP vision pipeline
             result.SkippedBySkill = true;
             result.SkillUsed = match.Skill;
             result.Successful = true;
             result.FinalMessage = $"Skill hit: {match.Skill.Name} (confidence: {match.Confidence:F2})";
             result.StepsExecuted = match.Skill.ProcedureSteps;
             result.SkillConfidence = match.Confidence;
-
-            // Record skill usage
             match.Skill.RecordUsage(true);
             _skills.AfterSuccess(ToTaskTrace(request.Task, match.Skill));
             return result;
         }
 
-        // Step 1: Normal VACP execution
         var vacpResult = await _planner.Execute闭环(request);
         result.VacpResult = vacpResult;
         result.Successful = vacpResult.Success;
         result.FinalMessage = vacpResult.FinalMessage;
 
-        // Step 2: On success, extract and store skill
         if (vacpResult.Success)
         {
             var taskTrace = ToTaskTrace(request.Task, vacpResult);
             _skills.AfterSuccess(taskTrace);
             result.StepsExecuted = taskTrace.StepTraces
                 .Where(s => s.SelectedAction != null)
-                .Select(s => s.SelectedAction.ActionType)
+                .Select(s => s.SelectedAction!.ActionType)
                 .Where(a => !string.IsNullOrEmpty(a))
                 .ToList();
         }
@@ -90,6 +130,25 @@ public class VacpPlannerWithSkills
         if (t.Contains("dialog") || t.Contains("popup") || t.Contains("confirm")) return "dialog";
         if (t.Contains("file") || t.Contains("explorer") || t.Contains("folder")) return "file-explorer";
         return "generic";
+    }
+
+    // NEW: inject skill as planning hint, not execution bypass
+    private static SkillHint CreateSkillHint(VisualSkill skill)
+    {
+        var elements = new List<string>();
+        foreach (var cond in skill.TriggerConditions)
+        {
+            var keyVal = cond.Split('=', 2);
+            if (keyVal.Length == 2 && keyVal[0] == "element_labels")
+                elements.AddRange(keyVal[1].Split(',', StringSplitOptions.RemoveEmptyEntries));
+        }
+
+        return new SkillHint
+        {
+            SuggestedElements = elements,
+            SuggestedActionTypes = skill.ProcedureSteps.ToList(),
+            PreferredRiskLevel = skill.RiskLevel
+        };
     }
 
     private static VacpTaskTrace ToTaskTrace(string taskDescription, VisualSkill skill)
@@ -132,7 +191,7 @@ public class VacpPlannerWithSkills
                     }
                 },
                 ExecutionResult = vacpResult.Success ? "SUCCESS" : "FAILED",
-            VerificationScore = vacpResult.VerificationResult?.VerificationScore ?? 0,
+                VerificationScore = vacpResult.VerificationResult?.VerificationScore ?? 0,
                 VerificationOutcome = vacpResult.VerificationResult?.Outcome.ToString() ?? ""
             });
         }
@@ -157,4 +216,10 @@ public class VacpSkillResult
     public double SkillConfidence { get; set; }
     public VacpResult? VacpResult { get; set; }
     public List<string> StepsExecuted { get; set; } = [];
+
+    // V0.8 Skill-Guided Execution
+    public List<SkillSearchResult> SkillSearchResults { get; set; } = new();
+    public List<SkillSearchResult> UsableSkills { get; set; } = new();
+    public VisualSkill? TopSkillCandidate { get; set; }
+    public SkillMatchScore? TopSkillScore { get; set; }
 }

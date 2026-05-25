@@ -1,0 +1,59 @@
+{
+  "demo": "demo10_risk_gated_skill_use",
+  "title": "Risk-Gated Skill Use → Blocked → VACP Handles with Caution",
+
+  "scenario": "delete all files in the folder (high-risk task with L0 skill)",
+
+  "task": "delete all files in the folder",
+  "high_risk_keywords_detected": ["delete"],
+
+  "skill_search": {
+    "query": "delete all files in the folder",
+    "results": [
+      {
+        "skill_id": "vs_notepad_edit",
+        "name": "Notepad Text Entry",
+        "app_pattern": "notepad*",
+        "screen_type": "edit",
+        "risk_level": "L0",
+        "usage_count": 3,
+        "score": {
+          "app_match": 0.0,
+          "text_match": 0.0,
+          "action_sequence_match": 0.0,
+          "risk_match": 0.0,
+          "recency_factor": 0.60,
+          "total": 0.06,
+          "is_usable": false
+        },
+        "filter_reason": "IsHighRiskTask=true, skill.RiskLevel=L0, CanUseSkill=false"
+      }
+    ]
+  },
+
+  "policy_evaluation": {
+    "is_high_risk_task": true,
+    "skill_risk_level": "L0",
+    "can_use_skill": false,
+    "block_reason": "IsHighRiskTask(taskText) && skill.RiskLevel == L0"
+  },
+
+  "skill_hint_injected": false,
+  "usable_skills": [],
+
+  "vacp_execution": {
+    "skipped_by_skill": false,
+    "skill_hint_used": false,
+    "risk_gate_decision": "CONFIRM",
+    "confirmation_required": true,
+    "confirmation_message": "This will permanently delete all files. Continue?",
+    "final_outcome": "AWAITING_USER_CONFIRMATION"
+  },
+
+  "comparison": {
+    "v0_7_behavior": "Would attempt to use L0 skill for delete task (unsafe short-circuit)",
+    "v0_8_behavior": "Skill blocked by policy, VACP handles with CONFIRM gate"
+  },
+
+  "design_guarantee": "V0.8 NEVER bypasses VACP for high-risk tasks, regardless of skill confidence"
+}

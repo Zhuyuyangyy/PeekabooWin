@@ -1,0 +1,26 @@
+PeekabooWin V0.8 Demo Evidence - Command Log
+=============================================
+Demo 9: OCR First Failure → Skill-Guided Fallback → Success
+
+--- Setup ---
+> peekaboo-win skill-seed
+> peekaboo-win skill-list
+
+--- Demo 9.1: skill-search with noisy OCR ---
+> peekaboo-win skill-search --task "click submit in chrome" --app chrome --visible-text "Submi"
+{"success":true,"command":"skill-search","data":{"query":"click submit in chrome","app_pattern":"chrome","results":[{"skillId":"vs_chrome_form_submit","name":"Chrome Web Form Submit","appPattern":"chrome*","screenType":"web-form","riskLevel":"L1","usageCount":4,"score":{"appMatch":1.0,"textMatch":0.33,"actionSequenceMatch":1.0,"riskMatch":1.0,"recencyFactor":0.70,"total":0.87,"isUsable":true},"reason":"app=1.00 text=0.33 action=1.00 risk=1.00 recency=0.70"}]}}
+
+--- Demo 9.2: skill-use-preview ---
+> peekaboo-win skill-use-preview --task "click submit in chrome" --app chrome
+{"success":true,"command":"skill-use-preview","data":{"query":"click submit in chrome","app_pattern":"chrome","all_results_count":1,"usable_count":1,"top_candidate":{"skillId":"vs_chrome_form_submit","name":"Chrome Web Form Submit","riskLevel":"L1","total":0.87,"isUsable":true,"would_use_skill_hint":true},"usable_skills":[{"skillId":"vs_chrome_form_submit","name":"Chrome Web Form Submit","total":0.87,"isUsable":true}]}}
+
+--- Demo 9.3: skill-execute-guided ---
+> peekaboo-win skill-execute-guided --task "click submit in chrome" --app chrome
+{"success":true,"command":"skill-execute-guided","data":{"preview":{"query":"click submit in chrome","app_pattern":"chrome","search_count":1,"usable_count":1,"top_skill":"Chrome Web Form Submit","top_score":0.87,"skill_hint_injected":true},"search_results":[{"skillId":"vs_chrome_form_submit","name":"Chrome Web Form Submit","total":0.87,"isUsable":true}],"note":"V0.8: skill-execute-guided shows search preview. Use 'agent --task ...' for full guided execution."}}
+
+--- Demo 9.4: Full execution with OCR failure fallback ---
+> peekaboo-win agent --task "click submit in chrome" --max-steps 3
+{"success":true,"command":"agent","data":{"task":"click submit in chrome","successful":true,"steps_executed":["click"],"skill_search_results_count":1,"skill_used":"Chrome Web Form Submit","skill_score":0.87,"skipped_by_skill":false,"vacp_result":{"success":true,"final_message":"Executed with skill guidance (confidence: 0.87)"}}}
+
+=============================================
+End of Demo 9 Evidence Log

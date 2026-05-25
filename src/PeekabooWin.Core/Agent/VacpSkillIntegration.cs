@@ -23,13 +23,31 @@ public class VacpSkillIntegration
     private readonly VisualSkillStore _store;
     private readonly VisualSkillExtractor _extractor;
     private readonly VisualSkillRetriever _retriever;
+    private readonly SkillRetriever _skillRetriever;  // V0.8
+    private readonly SkillExecutionPolicy _policy;    // V0.8
 
     public VacpSkillIntegration(VisualSkillStore? store = null)
     {
         _store = store ?? new VisualSkillStore();
         _extractor = new VisualSkillExtractor();
         _retriever = new VisualSkillRetriever(_store);
+        _skillRetriever = new SkillRetriever(_store); // V0.8
+        _policy = new SkillExecutionPolicy();          // V0.8
     }
+
+    /// <summary>
+    /// V0.8 Skill-Guided Execution: full-text search with multi-dimensional scoring.
+    /// </summary>
+    public List<SkillSearchResult> Search(string taskText, string? appPattern = null,
+        string? visibleText = null, string? windowTitle = null)
+    {
+        return _skillRetriever.Search(taskText, appPattern, visibleText, windowTitle);
+    }
+
+    /// <summary>
+    /// V0.8 execution policy for hard-filtering skill candidates.
+    /// </summary>
+    public SkillExecutionPolicy Policy => _policy;
 
     /// <summary>
     /// Called after successful VACP execution to extract and store the skill.

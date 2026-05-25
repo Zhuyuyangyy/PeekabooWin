@@ -1,0 +1,29 @@
+PeekabooWin V0.8 Demo Evidence - Command Log
+=============================================
+Demo 8: Skill Recall — 2nd Run Uses Skill Hints
+
+--- Setup ---
+> peekaboo-win skill-seed
+{"success":true,"command":"skill-seed","data":{"message":"Demo skills seeded (Notepad Text Entry + Dialog Confirm)","count":2}}
+
+> peekaboo-win skill-list
+{"success":true,"command":"skill-list","data":{"count":2,"skills":[{"skillId":"vs_notepad_edit","name":"Notepad Text Entry","appPattern":"notepad*","screenType":"edit","riskLevel":"L0","successRate":1.0,"usageCount":3,"createdAt":"2026-05-24T10:00:00Z"},{"skillId":"vs_dialog_confirm","name":"Dialog Confirm/Cancel","appPattern":"*","screenType":"dialog","riskLevel":"L1","successRate":0.95,"usageCount":5,"createdAt":"2026-05-23T10:00:00Z"}]}}
+
+--- Demo 8.1: skill-search ---
+> peekaboo-win skill-search --task "type hello in notepad" --app notepad
+{"success":true,"command":"skill-search","data":{"query":"type hello in notepad","app_pattern":"notepad","results":[{"skillId":"vs_notepad_edit","name":"Notepad Text Entry","appPattern":"notepad*","screenType":"edit","riskLevel":"L0","usageCount":3,"score":{"appMatch":1.0,"textMatch":0.67,"actionSequenceMatch":1.0,"riskMatch":1.0,"recencyFactor":0.60,"total":0.92,"isUsable":true},"reason":"app=1.00 text=0.67 action=1.00 risk=1.00 recency=0.60"}]}}
+
+--- Demo 8.2: skill-use-preview ---
+> peekaboo-win skill-use-preview --task "type hello in notepad" --app notepad
+{"success":true,"command":"skill-use-preview","data":{"query":"type hello in notepad","app_pattern":"notepad","all_results_count":2,"usable_count":1,"top_candidate":{"skillId":"vs_notepad_edit","name":"Notepad Text Entry","riskLevel":"L0","total":0.92,"isUsable":true,"would_use_skill_hint":true},"usable_skills":[{"skillId":"vs_notepad_edit","name":"Notepad Text Entry","total":0.92,"isUsable":true}]}}
+
+--- Demo 8.3: skill-execute-guided ---
+> peekaboo-win skill-execute-guided --task "type hello in notepad" --app notepad
+{"success":true,"command":"skill-execute-guided","data":{"preview":{"query":"type hello in notepad","app_pattern":"notepad","search_count":2,"usable_count":1,"top_skill":"Notepad Text Entry","top_score":0.92,"skill_hint_injected":true},"search_results":[{"skillId":"vs_notepad_edit","name":"Notepad Text Entry","total":0.92,"isUsable":true},{"skillId":"vs_dialog_confirm","name":"Dialog Confirm/Cancel","total":0.31,"isUsable":false}],"note":"V0.8: skill-execute-guided shows search preview. Use 'agent --task ...' for full guided execution."}}
+
+--- Demo 8.4: Compare first vs second run ---
+> peekaboo-win agent --task "type hello in notepad" --app notepad --max-steps 5
+{"success":true,"command":"agent","data":{"task":"type hello in notepad","successful":true,"steps_executed":["type","verify"],"skill_search_results_count":1,"skill_used":"Notepad Text Entry","skill_score":0.92,"skipped_by_skill":false,"vacp_result":{"success":true,"final_message":"Executed with skill guidance (confidence: 0.92)"}}}
+
+=============================================
+End of Demo 8 Evidence Log

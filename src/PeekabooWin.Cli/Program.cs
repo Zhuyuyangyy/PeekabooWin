@@ -108,6 +108,15 @@ class Program
                 case "skill-seed":
                     return HandleSkillSeed(args);
 
+                case "skill-search":
+                    return HandleSkillSearch(args);
+
+                case "skill-use-preview":
+                    return HandleSkillUsePreview(args);
+
+                case "skill-execute-guided":
+                    return HandleSkillExecuteGuided(args, windowService, captureService, inputService, uiaService, ocrService);
+
                 case "agent":
                     return HandleAgent(args, windowService, captureService, inputService, uiaService, ocrService);
 
@@ -911,6 +920,153 @@ Examples:
             count = store.GetAll().Count
         });
         PrintJson(result);
+        return 0;
+    }
+
+    // ==================== V0.8 Skill-Guided Execution CLI ====================
+
+    static int HandleSkillSearch(string[] args)
+    {
+        var task = GetFlag(args, "--task", "-t") ?? GetFlag(args, "--text", "-x");
+        var app = GetFlag(args, "--app", "-a");
+        var text = GetFlag(args, "--visible-text", "-v");
+        var title = GetFlag(args, "--window", "-w");
+
+        if (string.IsNullOrEmpty(task))
+        {
+            PrintError("skill-search", "Missing --task flag");
+            return 1;
+        }
+
+        var store = new PeekabooWin.Core.Memory.VisualSkillStore();
+        var integration = new PeekabooWin.Core.Agent.VacpSkillIntegration(store);
+        var searchResults = integration.Search(task, app, text, title);
+
+        var output = new
+        {
+            query = task,
+            app_pattern = app,
+            results = searchResults.Select(r => new
+            {
+                r.Skill.SkillId,
+                r.Skill.Name,
+                r.Skill.AppPattern,
+                r.Skill.ScreenType,
+                r.Skill.RiskLevel,
+                r.Skill.UsageCount,
+                score = new
+                {
+                    r.Score.AppMatch,
+                    r.Score.TextMatch,
+                    r.Score.ActionSequenceMatch,
+                    r.Score.RiskMatch,
+                    r.Score.RecencyFactor,
+                    r.Score.Total,
+                    r.Score.IsUsable
+                },
+                r.Reason
+            }).ToList()
+        };
+
+        var cmdResult = CommandResult.Ok("skill-search", output);
+        PrintJson(cmdResult);
+        return 0;
+    }
+
+    static int HandleSkillUsePreview(string[] args)
+    {
+        var task = GetFlag(args, "--task", "-t");
+        var app = GetFlag(args, "--app", "-a");
+
+        if (string.IsNullOrEmpty(task))
+        {
+            PrintError("skill-use-preview", "Missing --task flag");
+            return 1;
+        }
+
+        var store = new PeekabooWin.Core.Memory.VisualSkillStore();
+        var integration = new PeekabooWin.Core.Agent.VacpSkillIntegration(store);
+        var searchResults = integration.Search(task, app, null, null);
+        var usable = searchResults.Where(r => integration.Policy.CanUseSkill(r, task)).ToList();
+        var best = usable.FirstOrDefault();
+
+        var output = new
+        {
+            query = task,
+            app_pattern = app,
+            all_results_count = searchResults.Count,
+            usable_count = usable.Count,
+            top_candidate = best != null ? new
+            {
+                best.Skill.SkillId,
+                best.Skill.Name,
+                best.Skill.RiskLevel,
+                best.Score.Total,
+                best.Score.IsUsable,
+                would_use_skill_hint = best.Score.Total >= 0.7
+            } : null,
+            usable_skills = usable.Select(r => new
+            {
+                r.Skill.SkillId,
+                r.Skill.Name,
+                r.Score.Total,
+                r.Score.IsUsable
+            }).ToList()
+        };
+
+        var cmdResult = CommandResult.Ok("skill-use-preview", output);
+        PrintJson(cmdResult);
+        return 0;
+    }
+
+    static int HandleSkillExecuteGuided(string[] args, WindowService windowService,
+        CaptureService captureService, InputService inputService,
+        UIAutomationService uiaService, OcrService ocrService)
+    {
+        var task = GetFlag(args, "--task", "-t");
+        var app = GetFlag(args, "--app", "-a");
+
+        if (string.IsNullOrEmpty(task))
+        {
+            PrintError("skill-execute-guided", "Missing --task flag");
+            return 1;
+        }
+
+        var store = new PeekabooWin.Core.Memory.VisualSkillStore();
+        var integration = new PeekabooWin.Core.Agent.VacpSkillIntegration(store);
+
+        // V0.8: Search first
+        var searchResults = integration.Search(task, app, null, null);
+        var usable = searchResults.Where(r => integration.Policy.CanUseSkill(r, task)).ToList();
+        var best = usable.FirstOrDefault();
+
+        var preview = new
+        {
+            query = task,
+            app_pattern = app,
+            search_count = searchResults.Count,
+            usable_count = usable.Count,
+            top_skill = best?.Skill.Name,
+            top_score = best?.Score.Total,
+            skill_hint_injected = best != null && best.Score.Total >= 0.7
+        };
+
+        // In V0.8 MVP the actual VACP execution is deferred to the AgentService path
+        // which calls VacpPlannerWithSkills.PlanWithSkills internally.
+        // Here we return the preview with skill search results.
+        var cmdResult = CommandResult.Ok("skill-execute-guided", new
+        {
+            preview,
+            search_results = searchResults.Select(r => new
+            {
+                r.Skill.SkillId,
+                r.Skill.Name,
+                r.Score.Total,
+                r.Score.IsUsable
+            }),
+            note = "V0.8: skill-execute-guided shows search preview. Use 'agent --task ...' for full guided execution."
+        });
+        PrintJson(cmdResult);
         return 0;
     }
 }

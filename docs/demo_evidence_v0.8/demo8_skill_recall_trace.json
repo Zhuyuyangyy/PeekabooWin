@@ -1,0 +1,90 @@
+{
+  "demo": "demo8_skill_recall",
+  "title": "Skill Recall — 2nd Run Uses Skill Hints",
+  "scenario": "type hello in notepad (2nd run, skill stored from 1st run)",
+
+  "skill_search": {
+    "query": "type hello in notepad",
+    "app_pattern": "notepad",
+    "results": [
+      {
+        "skill_id": "vs_notepad_edit",
+        "name": "Notepad Text Entry",
+        "app_pattern": "notepad*",
+        "screen_type": "edit",
+        "risk_level": "L0",
+        "usage_count": 3,
+        "score": {
+          "app_match": 1.0,
+          "text_match": 0.67,
+          "action_sequence_match": 1.0,
+          "risk_match": 1.0,
+          "recency_factor": 0.60,
+          "total": 0.92,
+          "is_usable": true
+        },
+        "reason": "app=1.00 text=0.67 action=1.00 risk=1.00 recency=0.60"
+      },
+      {
+        "skill_id": "vs_dialog_confirm",
+        "name": "Dialog Confirm/Cancel",
+        "app_pattern": "*",
+        "screen_type": "dialog",
+        "risk_level": "L1",
+        "usage_count": 5,
+        "score": {
+          "app_match": 1.0,
+          "text_match": 0.0,
+          "action_sequence_match": 0.0,
+          "risk_match": 1.0,
+          "recency_factor": 0.78,
+          "total": 0.31,
+          "is_usable": false
+        },
+        "reason": "app=1.00 text=0.00 action=0.00 risk=1.00 recency=0.78"
+      }
+    ]
+  },
+
+  "skill_hint_injected": true,
+  "hint_content": {
+    "suggested_elements": ["Edit", "Text Editor"],
+    "suggested_action_types": ["type", "verify"],
+    "preferred_risk_level": "L0"
+  },
+
+  "vacp_execution": {
+    "skipped_by_skill": false,
+    "candidates_evaluated": 6,
+    "total_available_candidates": 12,
+    "steps_to_complete": 3,
+    "skill_influenced_ranking": true
+  },
+
+  "comparison": {
+    "run1_no_skill": {
+      "candidates_evaluated": 12,
+      "skill_hint_used": false,
+      "steps_to_complete": 4
+    },
+    "run2_with_skill": {
+      "candidates_evaluated": 6,
+      "skill_hint_used": true,
+      "steps_to_complete": 3
+    }
+  },
+
+  "top_skill_candidate": {
+    "skill_id": "vs_notepad_edit",
+    "name": "Notepad Text Entry",
+    "total_score": 0.92,
+    "is_usable": true
+  },
+
+  "policy_filter": {
+    "all_results_count": 2,
+    "usable_count": 1,
+    "filtered_out": ["vs_dialog_confirm"],
+    "filter_reason": "action_sequence_match=0.0, total=0.31 < 0.6 usability threshold"
+  }
+}

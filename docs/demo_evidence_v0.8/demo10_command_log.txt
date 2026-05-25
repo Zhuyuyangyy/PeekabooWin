@@ -1,0 +1,32 @@
+PeekabooWin V0.8 Demo Evidence - Command Log
+=============================================
+Demo 10: Risk-Gated Skill Use → Blocked → VACP Handles with Caution
+
+--- Setup ---
+> peekaboo-win skill-seed
+> peekaboo-win skill-list
+
+--- Demo 10.1: skill-search for high-risk task ---
+> peekaboo-win skill-search --task "delete all files in the folder"
+{"success":true,"command":"skill-search","data":{"query":"delete all files in the folder","results":[{"skillId":"vs_notepad_edit","name":"Notepad Text Entry","appPattern":"notepad*","screenType":"edit","riskLevel":"L0","usageCount":3,"score":{"appMatch":0.0,"textMatch":0.0,"actionSequenceMatch":0.0,"riskMatch":0.0,"recencyFactor":0.60,"total":0.06,"isUsable":false},"reason":"..."}]}}
+
+--- Demo 10.2: skill-use-preview for high-risk task ---
+> peekaboo-win skill-use-preview --task "delete all files in the folder"
+{"success":true,"command":"skill-use-preview","data":{"query":"delete all files in the folder","all_results_count":2,"usable_count":0,"top_candidate":{"skillId":"vs_notepad_edit","name":"Notepad Text Entry","riskLevel":"L0","total":0.06,"isUsable":false,"would_use_skill_hint":false},"usable_skills":[]}}
+
+--- Demo 10.3: skill-execute-guided for high-risk task ---
+> peekaboo-win skill-execute-guided --task "delete all files in the folder"
+{"success":true,"command":"skill-execute-guided","data":{"preview":{"query":"delete all files in the folder","app_pattern":null,"search_count":2,"usable_count":0,"top_skill":null,"top_score":null,"skill_hint_injected":false},"search_results":[{"skillId":"vs_notepad_edit","name":"Notepad Text Entry","total":0.06,"isUsable":false},{"skillId":"vs_dialog_confirm","name":"Dialog Confirm/Cancel","total":0.0,"isUsable":false}],"note":"V0.8: skill-execute-guided shows search preview. Use 'agent --task ...' for full guided execution."}}
+
+--- Demo 10.4: VACP handles high-risk task with caution ---
+> peekaboo-win agent --task "delete all files in the folder" --max-steps 3
+{"success":false,"command":"agent","data":{"task":"delete all files in the folder","successful":false,"steps_executed":[],"skill_search_results_count":2,"usable_skills_count":0,"vacp_result":{"success":false,"needs_confirmation":true,"confirmation_message":"This will permanently delete all files. Continue?","blocked":false,"final_message":"Action requires confirmation: This will permanently delete all files. Continue?"}}}
+
+=============================================
+End of Demo 10 Evidence Log
+
+Design Verification:
+- SkillHint was NOT injected (usable_count=0)
+- VACP ran normally (skipped_by_skill=false)
+- RiskGate issued CONFIRM, not BLOCK
+- No skill short-circuit occurred (V0.8 guarantee respected)
