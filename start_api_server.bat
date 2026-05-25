@@ -1,0 +1,1 @@
+@echo off\r\ncd /d %~dp0src\PeekabooWin.ApiServer\r\necho Starting PeekabooWin API Server on port 8025...\r\ndotnet run -c Release\r\n
