@@ -16,15 +16,38 @@ namespace PeekabooWin.Core.Ocr;
 /// <summary>
 /// Windows.Media.Ocr OCR 服务
 /// 使用 Windows Runtime OCR API（内置 Windows 10/11）
+/// 支持图像预处理以提升识别精度
 /// </summary>
 public class OcrService : IDisposable
 {
     private readonly string _language;
+    private readonly OcrPreprocessor _preprocessor;
+    private readonly bool _usePreprocessing;
+    private readonly OcrConfidenceEvaluator _confidenceEvaluator;
 
-    public OcrService(string language = "zh-CN")
+    public OcrService(string language = "zh-CN", bool enablePreprocessing = true)
     {
         _language = language;
+        _usePreprocessing = enablePreprocessing;
+        _preprocessor = new OcrPreprocessor
+        {
+            ScaleFactor = 2,
+            EnableDenoising = true,
+            EnableBinarization = true,
+            DenoiseRadius = 2
+        };
     }
+
+    public OcrService(string language, OcrPreprocessor preprocessor)
+    {
+        _language = language;
+        _preprocessor = preprocessor;
+        _usePreprocessing = true;
+        _confidenceEvaluator = new OcrConfidenceEvaluator();
+    }
+
+    public OcrPreprocessor Preprocessor => _preprocessor;
+    internal OcrConfidenceEvaluator ConfidenceEvaluator => _confidenceEvaluator;
 
     /// <summary>
     /// 识别图片文件中的文字
@@ -38,27 +61,20 @@ public class OcrService : IDisposable
 
             return await Task.Run(async () =>
             {
-                // Load via WinRT StorageFile
-                var file = await WS.StorageFile.GetFileFromPathAsync(imagePath);
-                using var stream = await file.OpenAsync(WS.FileAccessMode.Read);
-                var decoder = await WGM.BitmapDecoder.CreateAsync(stream);
-                var softwareBitmap = await decoder.GetSoftwareBitmapAsync();
-
-                // Ensure BGRA8 format for OcrEngine
-                WGM.SoftwareBitmap? converted = null;
-                if (softwareBitmap.BitmapPixelFormat != WGM.BitmapPixelFormat.Bgra8)
+                Bitmap bitmap = new Bitmap(imagePath);
+                try
                 {
-                    converted = WGM.SoftwareBitmap.Convert(
-                        softwareBitmap,
-                        WGM.BitmapPixelFormat.Bgra8,
-                        WGM.BitmapAlphaMode.Premultiplied);
-                    softwareBitmap.Dispose();
-                    softwareBitmap = converted;
+                    if (_usePreprocessing)
+                    {
+                        using var preprocessed = _preprocessor.Preprocess(bitmap);
+                        return await RecognizePreprocessedBitmapAsync(preprocessed);
+                    }
+                    return await RecognizePreprocessedBitmapAsync(bitmap);
                 }
-
-                var result = RecognizeSoftwareBitmap(softwareBitmap);
-                softwareBitmap.Dispose();
-                return result;
+                finally
+                {
+                    bitmap.Dispose();
+                }
             });
         }
         catch (Exception ex)
@@ -72,38 +88,28 @@ public class OcrService : IDisposable
     /// </summary>
     public async Task<OcrResult> RecognizeBitmapAsync(Bitmap bitmap)
     {
-        return await Task.Run(() =>
+        return await Task.Run(async () =>
         {
             try
             {
-                var tempPath = Path.Combine(Path.GetTempPath(), $"ocr_{Guid.NewGuid():N}.png");
-                bitmap.Save(tempPath, ImageFormat.Png);
+                Bitmap processed = bitmap;
+                bool weOwnIt = false;
+
+                if (_usePreprocessing)
+                {
+                    processed = _preprocessor.Preprocess(bitmap);
+                    weOwnIt = true;
+                }
+
                 try
                 {
-                    var file = WS.StorageFile.GetFileFromPathAsync(tempPath).GetAwaiter().GetResult();
-                    using var stream = file.OpenAsync(WS.FileAccessMode.Read).GetAwaiter().GetResult();
-                    var decoder = WGM.BitmapDecoder.CreateAsync(stream).GetAwaiter().GetResult();
-                    var softwareBitmap = decoder.GetSoftwareBitmapAsync().GetAwaiter().GetResult();
-
-                    // Ensure BGRA8
-                    WGM.SoftwareBitmap? converted = null;
-                    if (softwareBitmap.BitmapPixelFormat != WGM.BitmapPixelFormat.Bgra8)
-                    {
-                        converted = WGM.SoftwareBitmap.Convert(
-                            softwareBitmap,
-                            WGM.BitmapPixelFormat.Bgra8,
-                            WGM.BitmapAlphaMode.Premultiplied);
-                        softwareBitmap.Dispose();
-                        softwareBitmap = converted;
-                    }
-
-                    var result = RecognizeSoftwareBitmap(softwareBitmap);
-                    softwareBitmap.Dispose();
+                    var result = await RecognizePreprocessedBitmapAsync(processed);
                     return result;
                 }
                 finally
                 {
-                    File.Delete(tempPath);
+                    if (weOwnIt)
+                        processed.Dispose();
                 }
             }
             catch (Exception ex)
@@ -111,6 +117,38 @@ public class OcrService : IDisposable
                 return new OcrResult { Text = "", Error = ex.Message };
             }
         });
+    }
+
+    private async Task<OcrResult> RecognizePreprocessedBitmapAsync(Bitmap bitmap)
+    {
+        var tempPath = Path.Combine(Path.GetTempPath(), $"ocr_{Guid.NewGuid():N}.png");
+        bitmap.Save(tempPath, ImageFormat.Png);
+        try
+        {
+            var file = WS.StorageFile.GetFileFromPathAsync(tempPath).GetAwaiter().GetResult();
+            using var stream = file.OpenAsync(WS.FileAccessMode.Read).GetAwaiter().GetResult();
+            var decoder = WGM.BitmapDecoder.CreateAsync(stream).GetAwaiter().GetResult();
+            var softwareBitmap = decoder.GetSoftwareBitmapAsync().GetAwaiter().GetResult();
+
+            WGM.SoftwareBitmap? converted = null;
+            if (softwareBitmap.BitmapPixelFormat != WGM.BitmapPixelFormat.Bgra8)
+            {
+                converted = WGM.SoftwareBitmap.Convert(
+                    softwareBitmap,
+                    WGM.BitmapPixelFormat.Bgra8,
+                    WGM.BitmapAlphaMode.Premultiplied);
+                softwareBitmap.Dispose();
+                softwareBitmap = converted;
+            }
+
+            var result = RecognizeSoftwareBitmap(softwareBitmap);
+            softwareBitmap.Dispose();
+            return result;
+        }
+        finally
+        {
+            try { File.Delete(tempPath); } catch { }
+        }
     }
 
     /// <summary>
@@ -160,13 +198,12 @@ public class OcrService : IDisposable
 
             var words = new List<OcrWord>();
 
-            // Iterate lines
             foreach (var line in ocrResult.Lines)
             {
                 foreach (var word in line.Words)
                 {
                     var box = word.BoundingRect;
-                    words.Add(new OcrWord
+                    var ocrWord = new OcrWord
                     {
                         Text = word.Text ?? "",
                         BoundingBox = new OcrRect
@@ -175,18 +212,16 @@ public class OcrService : IDisposable
                             Y = box.Y,
                             Width = box.Width,
                             Height = box.Height
-                        },
-                        Confidence = 1.0
-                    });
+                        }
+                    };
+                    ocrWord.Confidence = _confidenceEvaluator.CalculateWordConfidence(ocrWord.Text, ocrWord.BoundingBox);
+                    words.Add(ocrWord);
                 }
             }
 
-            // Also check if text was recognized but lines were empty
             var detectedText = ocrResult.Text ?? "";
             if (words.Count == 0 && !string.IsNullOrEmpty(detectedText))
             {
-                // Try to split text into words manually for word-level operations
-                // Windows.Media.Ocr doesn't always provide word boxes
                 var textParts = detectedText.Split(new[] { ' ', '\n', '\r', '\t' },
                     StringSplitOptions.RemoveEmptyEntries);
                 foreach (var part in textParts)
@@ -195,19 +230,21 @@ public class OcrService : IDisposable
                     {
                         Text = part,
                         BoundingBox = null,
-                        Confidence = 1.0
+                        Confidence = _confidenceEvaluator.CalculateWordConfidence(part, null)
                     });
                 }
             }
 
-            return new OcrResult
+            var result = new OcrResult
             {
                 Text = detectedText,
                 Words = words,
                 Language = engine.RecognizerLanguage.LanguageTag,
-                Confidence = words.Count > 0 ? 1.0 : 0,
                 Engine = "Windows.Media.Ocr"
             };
+
+            result.Confidence = words.Count > 0 ? words.Average(w => w.Confidence) : 0;
+            return result;
         }
         catch (Exception ex)
         {

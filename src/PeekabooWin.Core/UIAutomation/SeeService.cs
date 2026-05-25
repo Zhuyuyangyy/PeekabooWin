@@ -203,15 +203,215 @@ public class SeeService
     /// </summary>
     public SeeElement? FindElement(SeeElementCatalog catalog, string elementQuery)
     {
-        // Try by element_id first
-        var el = catalog.Elements.FirstOrDefault(e => e.ElementId == elementQuery);
-        if (el != null) return el;
+        return FindBestMatch(catalog, elementQuery)?.Element;
+    }
 
-        // Try by name (partial match)
-        el = catalog.Elements.FirstOrDefault(e =>
-            !string.IsNullOrEmpty(e.Name) &&
-            e.Name.Contains(elementQuery, StringComparison.OrdinalIgnoreCase));
-        return el;
+    /// <summary>
+    /// Find element with fuzzy matching and semantic understanding
+    /// </summary>
+    public FuzzyMatchResult FindBestMatch(SeeElementCatalog catalog, string elementQuery, double threshold = 0.6)
+    {
+        var query = elementQuery.ToLower().Trim();
+        var candidates = new List<(SeeElement Element, double Score, string MatchType)>();
+
+        foreach (var el in catalog.Elements)
+        {
+            var name = (el.Name ?? "").ToLower();
+            var autoId = (el.AutomationId ?? "").ToLower();
+            var className = (el.ClassName ?? "").ToLower();
+
+            if (string.IsNullOrEmpty(name) && string.IsNullOrEmpty(autoId))
+                continue;
+
+            double score = 0;
+            string matchType = "";
+
+            if (name == query || autoId == query)
+            {
+                score = 1.0;
+                matchType = "exact";
+            }
+            else if (name.Contains(query) || autoId.Contains(query))
+            {
+                score = 0.9;
+                matchType = "contains";
+            }
+            else if (FuzzyMatch(name, query, out var fuzzyScore) && fuzzyScore >= threshold)
+            {
+                score = fuzzyScore;
+                matchType = "fuzzy";
+            }
+            else if (ContainsAnyWord(name, query.Split(' ')))
+            {
+                score = 0.7;
+                matchType = "word_match";
+            }
+            else if (SemanticMatch(name, query, out var semanticScore))
+            {
+                score = semanticScore;
+                matchType = "semantic";
+            }
+
+            if (score >= threshold)
+            {
+                candidates.Add((el, score, matchType));
+            }
+        }
+
+        if (candidates.Count == 0)
+            return null;
+
+        var best = candidates.OrderByDescending(c => c.score).First();
+        return new FuzzyMatchResult
+        {
+            Element = best.Element,
+            Score = best.Score,
+            MatchType = best.MatchType,
+            AllCandidates = candidates.OrderByDescending(c => c.score).ToList()
+        };
+    }
+
+    private bool FuzzyMatch(string text, string pattern, out double score)
+    {
+        score = 0;
+
+        if (string.IsNullOrEmpty(text) || string.IsNullOrEmpty(pattern))
+            return false;
+
+        if (text.Length > pattern.Length * 3 || pattern.Length > text.Length * 3)
+            return false;
+
+        var distance = LevenshteinDistance(text, pattern);
+        var maxLen = Math.Max(text.Length, pattern.Length);
+        var similarity = 1.0 - ((double)distance / maxLen);
+
+        if (similarity >= 0.6)
+        {
+            score = similarity;
+            return true;
+        }
+
+        if (pattern.Length <= 3)
+        {
+            if (text.StartsWith(pattern))
+            {
+                score = 0.7;
+                return true;
+            }
+        }
+
+        if (text.Length >= pattern.Length)
+        {
+            var substrings = GetSubstrings(text, pattern.Length);
+            if (substrings.Any(s => s == pattern))
+            {
+                score = 0.85;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private List<string> GetSubstrings(string text, int length)
+    {
+        var result = new List<string>();
+        if (string.IsNullOrEmpty(text) || length <= 0 || length > text.Length)
+            return result;
+
+        for (int i = 0; i <= text.Length - length; i++)
+        {
+            result.Add(text.Substring(i, length));
+        }
+        return result;
+    }
+
+    private bool ContainsAnyWord(string text, string[] words)
+    {
+        foreach (var word in words)
+        {
+            if (string.IsNullOrWhiteSpace(word)) continue;
+            if (text.Contains(word)) return true;
+        }
+        return false;
+    }
+
+    private bool SemanticMatch(string elementName, string query, out double score)
+    {
+        score = 0;
+
+        var synonyms = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["save"] = new() { "保存", "save", "存储", "另存" },
+            ["cancel"] = new() { "取消", "cancel", "关闭", "back" },
+            ["ok"] = new() { "确定", "ok", "yes", "confirm", "yes" },
+            ["delete"] = new() { "删除", "delete", "remove", "remove" },
+            ["edit"] = new() { "编辑", "edit", "modify", "change" },
+            ["search"] = new() { "搜索", "search", "find", "查找" },
+            ["close"] = new() { "关闭", "close", "quit", "exit" },
+            ["back"] = new() { "返回", "back", "previous", "last" },
+            ["next"] = new() { "下一步", "next", "forward", "continue" },
+            ["submit"] = new() { "提交", "submit", "send", "post" },
+            ["login"] = new() { "登录", "login", "signin", "log in", "sign in" },
+            ["logout"] = new() { "退出", "logout", "signout", "sign out", "log out" },
+            ["settings"] = new() { "设置", "settings", "options", "preferences" }
+        };
+
+        var queryWords = query.Split(new[] { ' ', '_', '-', '(', ')' }, StringSplitOptions.RemoveEmptyEntries);
+
+        foreach (var kvp in synonyms)
+        {
+            foreach (var qw in queryWords)
+            {
+                if (kvp.Value.Contains(qw))
+                {
+                    foreach (var syn in kvp.Value)
+                    {
+                        if (elementName.Contains(syn) || elementName.Contains(kvp.Key))
+                        {
+                            score = 0.75;
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private int LevenshteinDistance(string s1, string s2)
+    {
+        if (string.IsNullOrEmpty(s1)) return s2?.Length ?? 0;
+        if (string.IsNullOrEmpty(s2)) return s1.Length;
+
+        var m = s1.Length;
+        var n = s2.Length;
+        var d = new int[m + 1, n + 1];
+
+        for (int i = 0; i <= m; i++) d[i, 0] = i;
+        for (int j = 0; j <= n; j++) d[0, j] = j;
+
+        for (int i = 1; i <= m; i++)
+        {
+            for (int j = 1; j <= n; j++)
+            {
+                var cost = s1[i - 1] == s2[j - 1] ? 0 : 1;
+                d[i, j] = Math.Min(
+                    Math.Min(d[i - 1, j] + 1, d[i, j - 1] + 1),
+                    d[i - 1, j - 1] + cost);
+            }
+        }
+
+        return d[m, n];
+    }
+
+    public class FuzzyMatchResult
+    {
+        public SeeElement? Element { get; set; }
+        public double Score { get; set; }
+        public string MatchType { get; set; } = "";
+        public List<(SeeElement Element, double Score, string MatchType)> AllCandidates { get; set; } = new();
     }
 
     /// <summary>
