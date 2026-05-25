@@ -1,9 +1,9 @@
 {
-  "version": "V0.6",
+  "version": "V0.6.2",
   "codename": "VACP",
   "full_name": "Vision-Action Closed-loop Planner",
-  "commit": "cdf7c17",
-  "date": "2026-05-23",
+  "commit": "926481d",
+  "date": "2026-05-25",
   "status": "ACCEPTED",
 
   "modules": {
@@ -51,8 +51,9 @@
     "demo1_notepad_text_entry": "✅ Baseline closed-loop: grounding=0.90, risk=0.085, verification=0.873",
     "demo2_popup_close": "✅ Complex UI: grounding=0.878, verification=0.808",
     "demo3_web_form_fill": "✅ Multi-step: 4/4 complete, submit triggers CONFIRM (0.35)",
-    "demo4_high_risk_block": "✅ Risk gate: 3/3 high-risk blocked, 1 safe ALLOW, in-scope 100%",
-    "demo5_failed_action_replan": "✅ Recovery: first=0.34 FAILED, retry=0.81 SUCCESS"
+    "demo4_high_risk_block": "✅ V0.6.1 Risk gate: 3/3 high-risk blocked, 1 safe ALLOW, in-scope 100%",
+    "demo5_failed_action_replan": "✅ Recovery: first=0.34 FAILED, retry=0.81 SUCCESS",
+    "demo6_doubao_web_ai_message": "✅ V0.6.2 OCR-grounded AI interaction — Doubao web reply verified, closed loop without fixed coordinates"
   },
 
   "v0_6_vs_v0_5": {
@@ -66,10 +67,11 @@
     "system_type": "V0.5: automation tool | V0.6: trusted visual desktop Agent"
   },
 
-  "v0_6_positioning": "Peekaboo-Win V0.6 将桌面自动化从"坐标执行"升级为"视觉感知—动作评分—风险门控—执行验证"的可信闭环 Agent。",
+  "v0_6_positioning": "Peekaboo-Win V0.6 将桌面自动化从「坐标执行」升级为「视觉感知—动作评分—风险门控—执行验证」的可信闭环 Agent。",
 
   "next_steps": [
-    "V0.6.1: Evaluation & Trace Pack (20-case benchmark, README update)",
+    "V0.6.1: Evaluation & Trace Pack (5-case benchmark, README update)",
+    "V0.6.2: OCR-grounded AI interaction demo (Demo 6: Doubao web) ✅ DONE",
     "V0.7: Visual Skill Memory (UI Pattern Memory + Phoenix-Evo integration)",
     "V0.8: Hybrid Perception (UIA+OCR+GPT Vision fusion)"
   ]

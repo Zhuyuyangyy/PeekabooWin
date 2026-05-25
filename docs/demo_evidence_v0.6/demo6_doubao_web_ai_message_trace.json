@@ -1,5 +1,5 @@
 {
-  "task_id": "demo4_doubao_web_ai_message",
+  "task_id": "demo6_doubao_web_ai_message",
   "version": "V0.6.2",
   "timestamp": "2026-05-25T12:00:00+08:00",
   "status": "PASS",
@@ -7,7 +7,7 @@
   "environment": {
     "target": "Doubao Web (Microsoft Edge)",
     "window_keyword": "必备",
-    "input_box_ocr_text": "说点什么",
+    "input_box_ocr_text": "说点什�?,
     "test_message": "Hello Alice from PeekabooWin"
   },
 
@@ -30,7 +30,7 @@
     {
       "step": 3,
       "action": "find-on-screen",
-      "text": "说点什么",
+      "text": "说点什�?,
       "result": "found",
       "coordinates": {
         "x": 847,
@@ -92,5 +92,5 @@
     "Before-After verification"
   ],
 
-  "significance": "V0.6.2 OCR-grounded external AI web interaction — perception/action/response closed loop without fixed coordinates"
+  "significance": "V0.6.2 OCR-grounded external AI web interaction �?perception/action/response closed loop without fixed coordinates"
 }
