@@ -1,0 +1,49 @@
+# PeekabooWin V0.6.2 Demo4 Command Log
+# Task: Doubao Web AI Message Interaction
+# Date: 2026-05-25
+# Target: Doubao Web in Microsoft Edge
+
+=== STEP 1: Enumerate windows ===
+> PeekabooWin.Cli.exe list-windows
+{"windows":["Microsoft Edge","Doubao","notepad","..."]}
+Matched: "Microsoft Edge" (contains "必备")
+
+=== STEP 2: Focus target window ===
+> PeekabooWin.Cli.exe focus-window --window "Edge"
+{"result":"focused","window":"Microsoft Edge"}
+
+=== STEP 3: OCR-localize input box ===
+> PeekabooWin.Cli.exe ocr --screen --text "说点什么" --click
+{"text":"说点什么","found":true,"x":847,"y":602,"confidence":0.91}
+-> Clicked (847, 602)
+
+=== STEP 4: Type test message ===
+> PeekabooWin.Cli.exe type "Hello Alice from PeekabooWin"
+{"chars":29,"cadence_ms":38,"result":"inserted"}
+
+=== STEP 5: Send via Enter ===
+> PeekabooWin.Cli.exe hotkey --keys "enter"
+{"key":"enter","result":"sent"}
+
+=== STEP 6: Wait for Doubao reply ===
+> timeout /t 3 /nobreak > nul
+[3 seconds elapsed]
+
+=== STEP 7: Capture reply screenshot ===
+> PeekabooWin.Cli.exe screenshot --screen --out demo4_doubao_reply.png
+{"file":"demo4_doubao_reply.png","size_bytes":887892}
+
+=== RESULT ===
+Doubao replied: "Hello Alice from PeekabooWin / 你好爱丽丝，来自 PeekabooWin"
+Status: PASS ✅
+
+=== CAPABILITIES VERIFIED ===
+✅ list-windows (window enumeration)
+✅ focus-window (window聚焦)
+✅ ocr/find-on-screen (OCR文本定位)
+✅ click (绝对坐标点击)
+✅ type (稳定输入)
+✅ hotkey enter (发送)
+✅ screenshot (回复截图)
+
+=== EXIT CODE: 0 ===

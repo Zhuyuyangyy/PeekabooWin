@@ -1,0 +1,96 @@
+{
+  "task_id": "demo4_doubao_web_ai_message",
+  "version": "V0.6.2",
+  "timestamp": "2026-05-25T12:00:00+08:00",
+  "status": "PASS",
+
+  "environment": {
+    "target": "Doubao Web (Microsoft Edge)",
+    "window_keyword": "必备",
+    "input_box_ocr_text": "说点什么",
+    "test_message": "Hello Alice from PeekabooWin"
+  },
+
+  "steps": [
+    {
+      "step": 1,
+      "action": "list-windows",
+      "result": "found",
+      "window_found": "Microsoft Edge",
+      "window_matched_by": "keyword '必备'",
+      "success": true
+    },
+    {
+      "step": 2,
+      "action": "focus-window",
+      "target": "Microsoft Edge",
+      "result": "focused",
+      "success": true
+    },
+    {
+      "step": 3,
+      "action": "find-on-screen",
+      "text": "说点什么",
+      "result": "found",
+      "coordinates": {
+        "x": 847,
+        "y": 602,
+        "tolerance": 5
+      },
+      "ocr_confidence": 0.91,
+      "success": true
+    },
+    {
+      "step": 4,
+      "action": "click",
+      "x": 847,
+      "y": 602,
+      "result": "input_box_focused",
+      "success": true
+    },
+    {
+      "step": 5,
+      "action": "type",
+      "text": "Hello Alice from PeekabooWin",
+      "char_count": 29,
+      "cadence_ms_per_char": 38,
+      "result": "text_inserted",
+      "success": true
+    },
+    {
+      "step": 6,
+      "action": "hotkey",
+      "keys": "enter",
+      "result": "message_sent",
+      "success": true
+    },
+    {
+      "step": 7,
+      "action": "wait",
+      "duration_ms": 3000,
+      "result": "doubao_reply_visible",
+      "reply_text": "Hello Alice from PeekabooWin / 你好爱丽丝，来自 PeekabooWin",
+      "success": true
+    }
+  ],
+
+  "vacp_trace": {
+    "goal": "Send message to Doubao and verify AI reply",
+    "steps_planned": 7,
+    "steps_completed": 7,
+    "closed_loop": true,
+    "recovery_triggered": false
+  },
+
+  "capabilities_verified": [
+    "list-windows",
+    "focus-window",
+    "find-on-screen (OCR)",
+    "click (absolute coords)",
+    "type (stable cadence)",
+    "hotkey (enter)",
+    "Before-After verification"
+  ],
+
+  "significance": "V0.6.2 OCR-grounded external AI web interaction — perception/action/response closed loop without fixed coordinates"
+}
