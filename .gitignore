@@ -7,3 +7,5 @@ obj/
 *.deps.json
 *.DotSettings.user
 *.user
+.skills.json
+.peekaboo/

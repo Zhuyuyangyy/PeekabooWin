@@ -117,11 +117,33 @@ curl -X POST http://localhost:8080/type -d "{\"text\":\"hello world\"}" -H "Cont
 > HTTP API 供 OpenClaw/Hermes 等外部 Agent 驱动 Windows 桌面自动化。
 > 所有端点返回 JSON，支持 CORS 跨域请求。
 
+## V0.7 命令（Visual Skill Memory — UI 模式记忆）
+
+```bash
+# 列出所有已提取的视觉技能
+peekaboo-win skill-list
+
+# 回放指定技能（可选：指定目标窗口）
+peekaboo-win skill-replay --id vs_notepad_edit --window notepad
+
+# 写入预置演示技能（用于 demo / 测试）
+peekaboo-win skill-seed
+```
+
+> V0.7 在 VACP 基础上增加 Skill Memory：
+> - 成功执行的 VACP 轨迹自动提取为 VisualSkill
+> - 下次遇到相似屏幕时，检索技能库，直接回放，跳过昂贵的视觉感知
+> - 支持跨 session 持久化（`~/.peekaboo/skills.json`）
+
 ## 版本路线
 
 - [x] V0.1: 窗口枚举 + 截图 + 鼠标键盘
 - [x] V0.2: UI Automation 控件树
 - [x] V0.3: OCR 文字识别兜底
 - [x] V0.4: LLM Agent Runtime（自然语言任务）
-- [x] V0.5: HTTP API 服务（给 Hermes/OpenClaw 调用）← current
-- [ ] V0.6: AgentShield 安全门控
+- [x] V0.5: HTTP API 服务（给 Hermes/OpenClaw 调用）
+- [x] V0.6: VACP — Vision-Action Closed-loop Planner（风险门控 + 执行验证 + 失败恢复）
+  - [x] V0.6.1: Risk Gate evidence（高风险操作阻断）
+  - [x] V0.6.2: OCR-grounded AI interaction（豆包网页 AI 交互闭环）
+- [x] **V0.7: Visual Skill Memory（UI 模式记忆与复用）** ← current
+- [ ] V0.8: Hybrid Perception（UIA + OCR + GPT Vision 融合）
