@@ -1,4 +1,4 @@
-﻿using System.Linq;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Encodings.Web;
@@ -960,7 +960,7 @@ Examples:
                 scope = r.Skill.Scope == null ? null : new
                 {
                     r.Skill.Scope.SupportedApps,
-                    r.Skill.Scope.SupportedWindowTypes,
+
                     r.Skill.Scope.RequiredAnchors,
                     r.Skill.Scope.ForbiddenDomains,
                     r.Skill.Scope.MinRiskLevel
@@ -1087,8 +1087,7 @@ Examples:
     static int HandleSkillSearchContext(string[] args)
     {
         var task = GetFlag(args, "--task", "-t") ?? GetFlag(args, "--text", "-x");
-        var windowTitle = GetFlag(args, "--window", "-w");;
-
+        var windowTitle = GetFlag(args, "--window", "-w");
 
         if (string.IsNullOrEmpty(task))
         {
@@ -1099,29 +1098,37 @@ Examples:
         var store = new PeekabooWin.Core.Memory.VisualSkillStore();
         var integration = new PeekabooWin.Core.Agent.VacpSkillIntegration(store);
 
-
-        // V0.9: Build AppProfile from current window state, then search with scope validation
+        // V0.9: Build WindowSignature from current window, then search with SkillScope validation
         var sig = integration.BuildWindowSignature(windowTitle);
         var searchResults = integration.SearchWithContext(task, windowTitle);
-        var visibleHints = sig.Profile.VisibleTextHints.ToList();
+        var visibleHints = sig.VisibleTexts;
         var anchors = sig.AnchorCandidates;
-
+        var profile = sig.Profile;
 
         var output = new
         {
             query = task,
             window_title = windowTitle ?? "(foreground window)",
-            app_profile = new
+            app_profile = profile == null ? null : new
             {
-                sig.Profile.AppName,
-                sig.Profile.ProcessName,
-                sig.Profile.WindowTitle,
-                sig.Profile.WindowType,
-                sig.Profile.InputMode,
-                sig.Profile.RiskDomain,
+                profile.AppName,
+                profile.ProcessName,
+                profile.AppId,
+                profile.WindowType,
+                profile.InputMode,
+                profile.RiskDomain,
                 visibleTextHints = visibleHints
             },
             anchor_candidates = anchors,
+            window_signature = new
+            {
+                sig.WindowTitle,
+                sig.ProcessName,
+                sig.WindowType,
+                sig.InputMode,
+                sig.RiskDomain,
+                sig.CapturedAt
+            },
             results = searchResults.Select(r => new
             {
                 r.Skill.SkillId,
@@ -1132,7 +1139,6 @@ Examples:
                 scope = r.Skill.Scope == null ? null : new
                 {
                     r.Skill.Scope.SupportedApps,
-                    r.Skill.Scope.SupportedWindowTypes,
                     r.Skill.Scope.RequiredAnchors,
                     r.Skill.Scope.ForbiddenDomains,
                     r.Skill.Scope.MinRiskLevel
@@ -1145,7 +1151,6 @@ Examples:
                 r.Reason
             }).ToList()
         };
-
 
         var cmdResult = CommandResult.Ok("skill-search-context", output);
         PrintJson(cmdResult);
