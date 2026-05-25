@@ -1,0 +1,92 @@
+# Demo 13 Command Log: Negative Transfer Block
+
+## Command Sequence
+
+### 1. skill-search-context with high-risk query
+
+```bash
+$ PeekabooWin.Cli.exe skill-search-context --task "转账确认高风险操作" --window "银行"
+```
+
+**Output:**
+```json
+{
+  "success": true,
+  "command": "skill-search-context",
+  "data": {
+    "query": "转账确认高风险操作",
+    "window_title": "银行",
+    "app_profile": {
+      "app_name": "chinabank",
+      "process_name": "chinabank.exe",
+      "window_title": "转账汇款",
+      "window_type": "Dialog",
+      "input_mode": "Mixed",
+      "risk_domain": "Payment",
+      "visible_text_hints": ["转账", "确认", "支付密码", "金额"]
+    },
+    "anchor_candidates": ["confirm_btn", "input_box"],
+    "results": []
+  }
+}
+```
+
+**Key observation:** `results: []` — the high-scoring candidate was BLOCKED and filtered out.
+
+### 2. skill-search (V0.8 mode) shows what WOULD have been found
+
+```bash
+$ PeekabooWin.Cli.exe skill-search --task "转账确认高风险操作" --app "chinabank"
+```
+
+```json
+{
+  "success": true,
+  "command": "skill-search",
+  "data": {
+    "query": "转账确认高风险操作",
+    "app_pattern": "chinabank",
+    "results": [
+      {
+        "skill_id": "vs_messaging_send",
+        "name": "vs_messaging_send",
+        "score": { "total": 0.81, "is_usable": false },
+        "reason": "[BLOCKED] App 'chinabank' not in supported apps: wechat*,msedge"
+      }
+    ]
+  }
+}
+```
+
+**Evidence:** `reason` field shows `[BLOCKED]` prefix with block reason.
+
+### 3. skill-search-context with ForbiddenDomains example
+
+```bash
+$ PeekabooWin.Cli.exe skill-search-context --task "帮我转账" --window "支付"
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "query": "帮我转账",
+    "app_profile": {
+      "app_name": "alipay",
+      "window_type": "Dialog",
+      "risk_domain": "Payment"
+    },
+    "results": []
+  }
+}
+```
+
+Blocked because the skill's `ForbiddenDomains: [Payment, Dangerous]` includes Payment.
+
+---
+
+## Evidence Summary
+
+- Demo13 command log: CONFIRMS block reason logged in `reason` field
+- Demo13 JSON trace: CONFIRMS 0 results returned when blocked
+- V0.8 vs V0.9 comparison: CONFIRMS V0.8 would have injected, V0.9 blocks

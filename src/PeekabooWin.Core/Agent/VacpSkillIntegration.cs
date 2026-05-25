@@ -1,119 +1,52 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using PeekabooWin.Core.Capture;
 using PeekabooWin.Core.Memory;
+using PeekabooWin.Core.Models;
+using PeekabooWin.Core.Ocr;
 using PeekabooWin.Core.Perception;
 using PeekabooWin.Core.Planning;
+using PeekabooWin.Core.Windows;
 
 namespace PeekabooWin.Core.Agent;
-
-/// <summary>
-/// V0.7 Visual Skill Memory integration for VacpPlanner.
-/// 
-/// After successful VACP execution:
-///   → Extract VisualSkill → Store
-///   
-/// Before VACP planning:
-///   → Check skill store for matching screen type
-///   → If hit with high confidence → skip full vision, use skill procedure
-///   → If miss → proceed with normal VACP vision pipeline
-/// </summary>
 public class VacpSkillIntegration
 {
     private readonly VisualSkillStore _store;
     private readonly VisualSkillExtractor _extractor;
     private readonly VisualSkillRetriever _retriever;
-    private readonly SkillRetriever _skillRetriever;  // V0.8
-    private readonly SkillExecutionPolicy _policy;    // V0.8
-
+    private readonly SkillRetriever _skillRetriever;
+    private readonly SkillExecutionPolicy _policy;
     public VacpSkillIntegration(VisualSkillStore? store = null)
-    {
-        _store = store ?? new VisualSkillStore();
-        _extractor = new VisualSkillExtractor();
-        _retriever = new VisualSkillRetriever(_store);
-        _skillRetriever = new SkillRetriever(_store); // V0.8
-        _policy = new SkillExecutionPolicy();          // V0.8
-    }
-
-    /// <summary>
-    /// V0.8 Skill-Guided Execution: full-text search with multi-dimensional scoring.
-    /// </summary>
-    public List<SkillSearchResult> Search(string taskText, string? appPattern = null,
-        string? visibleText = null, string? windowTitle = null)
-    {
-        return _skillRetriever.Search(taskText, appPattern, visibleText, windowTitle);
-    }
-
-    /// <summary>
-    /// V0.8 execution policy for hard-filtering skill candidates.
-    /// </summary>
+    { _store = store ?? new VisualSkillStore(); _extractor = new VisualSkillExtractor(); _retriever = new VisualSkillRetriever(_store); _skillRetriever = new SkillRetriever(_store); _policy = new SkillExecutionPolicy(); }
+    public List<SkillSearchResult> Search(string taskText, string? appPattern = null, string? visibleText = null, string? windowTitle = null) => _skillRetriever.Search(taskText, appPattern, visibleText, windowTitle);
     public SkillExecutionPolicy Policy => _policy;
-
-    /// <summary>
-    /// Called after successful VACP execution to extract and store the skill.
-    /// </summary>
-    public void AfterSuccess(VacpTaskTrace taskTrace)
+    public WindowSignature BuildWindowSignature(string? windowTitle = null)
     {
-        try
-        {
-            var skill = _extractor.Extract(taskTrace);
-            if (skill == null) return;
-
-            // Enrich skill with element labels from trace for replay guidance
-            EnrichSkillFromTrace(skill, taskTrace);
-            _store.Add(skill);
-        }
-        catch
-        {
-            // Silently fail — skill extraction should not block VACP
-        }
+        var sig = new WindowSignature { CapturedAt = DateTime.UtcNow };
+        var windowService = new WindowService();
+        var captureService = new CaptureService(windowService);
+        var ocrService = new OcrService();
+        var allWindows = windowService.ListWindows(null);
+        var targetWin = string.IsNullOrEmpty(windowTitle) ? allWindows.FirstOrDefault() : allWindows.FirstOrDefault(w => w.Title.Contains(windowTitle, StringComparison.OrdinalIgnoreCase));
+        if (targetWin != null) { sig.ProcessName = targetWin.ProcessName; sig.WindowTitle = targetWin.Title; var (wt, im, rd) = ClassifyWindow(targetWin); sig.WindowType = wt; sig.InputMode = im; sig.RiskDomain = rd; }
+        var tempPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "sig_" + Guid.NewGuid().ToString("N") + ".png");
+        try { captureService.CaptureWindow(targetWin?.Title ?? "", tempPath); if (System.IO.File.Exists(tempPath)) { var ocrResult = ocrService.RecognizeImageAsync(tempPath).GetAwaiter().GetResult(); sig.VisibleTexts = ocrResult.Words.Select(w => w.Text).Distinct().ToList(); } } finally { try { System.IO.File.Delete(tempPath); } catch { } }
+        return sig;
     }
-
-    /// <summary>
-    /// Called before VACP planning to check if a skill can short-circuit vision.
-    /// Returns null if no suitable skill found (proceed with normal VACP pipeline).
-    /// </summary>
-    public SkillMatch? BeforePlanning(string appPattern, string screenType)
+    public List<SkillSearchResult> SearchWithContext(string taskText, string? windowTitle = null)
     {
-        var skill = _retriever.Retrieve(appPattern, screenType, minConfidence: 0.75);
-        if (skill == null) return null;
-
-        return new SkillMatch
-        {
-            Skill = skill,
-            Confidence = ComputeConfidence(skill),
-            CanSkipVision = skill.SuccessRate >= 0.9 && skill.UsageCount >= 2
-        };
+        var sig = BuildWindowSignature(windowTitle);
+        var results = _skillRetriever.Search(taskText, sig.ProcessName, null, sig.WindowTitle);
+        var validator = new SkillScopeValidator();
+        return results.Where(r => { if (r.Skill.Scope == null) return true; var app = AppProfile.FromWindowSignature(sig); var scopeResult = validator.Validate(r.Skill, app); if (!scopeResult.IsValid) { r.Reason = "[BLOCKED] " + scopeResult.Reason; return false; } return true; }).ToList();
     }
-
+    public void AfterSuccess(VacpTaskTrace taskTrace) { try { var skill = _extractor.Extract(taskTrace); if (skill != null) { EnrichSkillFromTrace(skill, taskTrace); _store.Add(skill); } } catch { } }
+    public SkillMatch? BeforePlanning(string appPattern, string screenType) { var skill = _retriever.Retrieve(appPattern, screenType, minConfidence: 0.75); if (skill == null) return null; return new SkillMatch { Skill = skill, Confidence = ComputeConfidence(skill), CanSkipVision = skill.SuccessRate >= 0.9 && skill.UsageCount >= 2 }; }
     public IReadOnlyList<VisualSkill> GetAllSkills() => _store.GetAll();
-
-    public List<(VisualSkill skill, double confidence)> RankSkills(string appPattern, string screenType)
-        => _retriever.Rank(appPattern, screenType, top: 5);
-
-    private static void EnrichSkillFromTrace(VisualSkill skill, VacpTaskTrace trace)
-    {
-        // Store element labels from successful steps for replay matching
-        var labels = trace.StepTraces
-            .Where(s => s.SelectedAction != null && !string.IsNullOrEmpty(s.SelectedAction?.TargetLabel))
-            .Select(s => s.SelectedAction!.TargetLabel!)
-            .Distinct()
-            .ToList();
-
-        if (labels.Count > 0)
-            skill.TriggerConditions.Add($"element_labels={string.Join(",", labels)}");
-    }
-
-    private static double ComputeConfidence(VisualSkill skill)
-    {
-        var usageFactor = Math.Log(skill.UsageCount + 1) / Math.Log(10);
-        return skill.SuccessRate * Math.Min(usageFactor, 1.0);
-    }
+    public List<(VisualSkill skill, double confidence)> RankSkills(string appPattern, string screenType) => _retriever.Rank(appPattern, screenType, top: 5);
+    private static (string wt, string im, string rd) ClassifyWindow(WindowInfo win) { var title = win.Title.ToLower(); var proc = win.ProcessName.ToLower(); string wt = proc.Contains("notepad") ? "editor" : proc.Contains("chrome") || proc.Contains("msedge") ? "browser" : title.Contains("dialog") || title.Contains("confirm") ? "dialog" : "unknown"; string im = wt == "editor" ? "edit_field" : wt == "browser" ? "web_textbox" : wt == "dialog" ? "dialog_input" : "unknown"; string rd = title.Contains("bank") || title.Contains("pay") || title.Contains("transfer") ? "payment" : title.Contains("doubao") || title.Contains("ai") ? "external_ai_chat" : title.Contains("admin") || title.Contains("setting") ? "admin" : "neutral"; return (wt, im, rd); }
+    private static void EnrichSkillFromTrace(VisualSkill skill, VacpTaskTrace trace) { var labels = trace.StepTraces.Where(s => s.SelectedAction != null && !string.IsNullOrEmpty(s.SelectedAction?.TargetLabel)).Select(s => s.SelectedAction!.TargetLabel!).Distinct().ToList(); if (labels.Count > 0) skill.TriggerConditions.Add("element_labels=" + string.Join(",", labels)); }
+    private static double ComputeConfidence(VisualSkill skill) => skill.SuccessRate * Math.Min(Math.Log(skill.UsageCount + 1) / Math.Log(10), 1.0);
 }
-
-public class SkillMatch
-{
-    public VisualSkill Skill { get; set; } = null!;
-    public double Confidence { get; set; }
-    public bool CanSkipVision { get; set; }
-}
+public class SkillMatch { public VisualSkill Skill { get; set; } = null!; public double Confidence { get; set; } public bool CanSkipVision { get; set; } }

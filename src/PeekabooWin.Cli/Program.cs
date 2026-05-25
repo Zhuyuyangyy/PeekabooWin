@@ -111,6 +111,9 @@ class Program
                 case "skill-search":
                     return HandleSkillSearch(args);
 
+                case "skill-search-context":
+                    return HandleSkillSearchContext(args);
+
                 case "skill-use-preview":
                     return HandleSkillUsePreview(args);
 
@@ -942,7 +945,7 @@ Examples:
         var integration = new PeekabooWin.Core.Agent.VacpSkillIntegration(store);
         var searchResults = integration.Search(task, app, text, title);
 
-        var output = new
+                var output = new
         {
             query = task,
             app_pattern = app,
@@ -954,6 +957,14 @@ Examples:
                 r.Skill.ScreenType,
                 r.Skill.RiskLevel,
                 r.Skill.UsageCount,
+                scope = r.Skill.Scope == null ? null : new
+                {
+                    r.Skill.Scope.SupportedApps,
+                    r.Skill.Scope.SupportedWindowTypes,
+                    r.Skill.Scope.RequiredAnchors,
+                    r.Skill.Scope.ForbiddenDomains,
+                    r.Skill.Scope.MinRiskLevel
+                },
                 score = new
                 {
                     r.Score.AppMatch,
@@ -1066,6 +1077,77 @@ Examples:
             }),
             note = "V0.8: skill-execute-guided shows search preview. Use 'agent --task ...' for full guided execution."
         });
+        PrintJson(cmdResult);
+        return 0;
+    }
+
+    // ==================== V0.9 skill-search-context ====================
+
+
+    static int HandleSkillSearchContext(string[] args)
+    {
+        var task = GetFlag(args, "--task", "-t") ?? GetFlag(args, "--text", "-x");
+        var windowTitle = GetFlag(args, "--window", "-w");;
+
+
+        if (string.IsNullOrEmpty(task))
+        {
+            PrintError("skill-search-context", "Missing --task flag");
+            return 1;
+        }
+
+        var store = new PeekabooWin.Core.Memory.VisualSkillStore();
+        var integration = new PeekabooWin.Core.Agent.VacpSkillIntegration(store);
+
+
+        // V0.9: Build AppProfile from current window state, then search with scope validation
+        var sig = integration.BuildWindowSignature(windowTitle);
+        var searchResults = integration.SearchWithContext(task, windowTitle);
+        var visibleHints = sig.Profile.VisibleTextHints.ToList();
+        var anchors = sig.AnchorCandidates;
+
+
+        var output = new
+        {
+            query = task,
+            window_title = windowTitle ?? "(foreground window)",
+            app_profile = new
+            {
+                sig.Profile.AppName,
+                sig.Profile.ProcessName,
+                sig.Profile.WindowTitle,
+                sig.Profile.WindowType,
+                sig.Profile.InputMode,
+                sig.Profile.RiskDomain,
+                visibleTextHints = visibleHints
+            },
+            anchor_candidates = anchors,
+            results = searchResults.Select(r => new
+            {
+                r.Skill.SkillId,
+                r.Skill.Name,
+                r.Skill.AppPattern,
+                r.Skill.ScreenType,
+                r.Skill.RiskLevel,
+                scope = r.Skill.Scope == null ? null : new
+                {
+                    r.Skill.Scope.SupportedApps,
+                    r.Skill.Scope.SupportedWindowTypes,
+                    r.Skill.Scope.RequiredAnchors,
+                    r.Skill.Scope.ForbiddenDomains,
+                    r.Skill.Scope.MinRiskLevel
+                },
+                score = new
+                {
+                    r.Score.Total,
+                    r.Score.IsUsable
+                },
+                r.Reason
+            }).ToList()
+        };
+
+
+        var cmdResult = CommandResult.Ok("skill-search-context", output);
         PrintJson(cmdResult);
         return 0;
     }

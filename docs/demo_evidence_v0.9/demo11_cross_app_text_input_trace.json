@@ -1,0 +1,83 @@
+{
+  "demo": "demo11_cross_app_text_input",
+  "title": "Cross-App Text Input Migration (Notepad → Doubao Web)",
+  "version": "V0.9",
+  "trace": {
+    "step1_app_profile": {
+      "app_name": "msedge",
+      "process_name": "msedge.exe",
+      "window_title": "豆包 AI 助手",
+      "window_type": "WebBrowser",
+      "input_mode": "Mixed",
+      "risk_domain": "Messaging",
+      "visible_text_hints": ["说点什么...", "发送", "Ctrl+Enter发送", "输入框"],
+      "anchor_candidates": ["input_box", "send_btn"]
+    },
+    "step2_skill_search": {
+      "query": "在豆包发消息",
+      "candidates_found": 1,
+      "top_candidate": {
+        "skill_id": "vs_text_input",
+        "name": "vs_text_input",
+        "app_pattern": "notepad*,msedge,doubao_web",
+        "scope": {
+          "supported_apps": ["notepad*", "msedge", "doubao_web"],
+          "supported_window_types": ["Edit", "WebBrowser"],
+          "required_anchors": ["input_box"],
+          "forbidden_domains": [],
+          "min_risk_level": "L0"
+        },
+        "score": {
+          "app_match": 1.0,
+          "text_match": 0.85,
+          "action_match": 0.80,
+          "total": 0.91
+        }
+      }
+    },
+    "step3_scope_validation": {
+      "method": "SkillScopeValidator.ValidateMigration",
+      "checks": [
+        {"check": "App 'msedge' matches SupportedApps", "result": "PASS"},
+        {"check": "WindowType WebBrowser in [Edit, WebBrowser]", "result": "PASS"},
+        {"check": "RequiredAnchors match ratio >= 0.5", "result": "PASS (1.0)"},
+        {"check": "RiskDomain Messaging in ForbiddenDomains", "result": "PASS (not found)"},
+        {"check": "RiskDomain >= MinRiskLevel L0", "result": "PASS"}
+      ],
+      "result": null,
+      "blocked": false
+    },
+    "step4_skill_hint_injected": {
+      "suggested_elements": ["input_box", "send_btn"],
+      "suggested_action_types": ["type", "click"],
+      "preferred_risk_level": "L0",
+      "injected": true
+    },
+    "step5_vacp_execution": {
+      "task": "在豆包发消息",
+      "skill_hint_active": true,
+      "selected_action": "type",
+      "target_element": "说点什么...",
+      "grounding_score": 0.95,
+      "risk_gate": "PASS",
+      "verification": "SUCCESS",
+      "skipped_by_skill": false
+    },
+    "step6_after_success": {
+      "scope_auto_extracted": true,
+      "extracted_scope": {
+        "supported_apps": ["msedge", "doubao_web"],
+        "supported_window_types": ["WebBrowser"],
+        "required_anchors": ["input_box"]
+      }
+    }
+  },
+  "acceptance": {
+    "app_profile_built": true,
+    "skill_found_cross_app": true,
+    "scope_validation_passed": true,
+    "skill_hint_injected": true,
+    "vacp_executed_with_hint": true,
+    "skipped_by_skill": false
+  }
+}

@@ -16,10 +16,15 @@ public class VisualSkill
     public List<string> TriggerConditions { get; set; } = [];
     public List<string> ProcedureSteps { get; set; } = [];  // serialized action sequence
     public string RiskLevel { get; set; } = "L0";
+    public string RiskDomain { get; set; } = "neutral";
+    public List<string> ContextAnchors { get; set; } = [];
     public double SuccessRate { get; set; } = 1.0;
     public int UsageCount { get; set; } = 0;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+    // V0.9 SkillScope: cross-app migration metadata
+    public SkillScope? Scope { get; set; }
 
     public void RecordUsage(bool success)
     {

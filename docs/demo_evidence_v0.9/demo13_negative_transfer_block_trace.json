@@ -1,0 +1,77 @@
+{
+  "demo": "demo13_negative_transfer_block",
+  "title": "Negative Transfer Block — V0.9 Safety Boundary",
+  "version": "V0.9",
+  "trace": {
+    "step1_app_profile": {
+      "app_name": "chinabank",
+      "process_name": "chinabank.exe",
+      "window_title": "转账汇款",
+      "window_type": "Dialog",
+      "input_mode": "Mixed",
+      "risk_domain": "Payment",
+      "visible_text_hints": ["转账", "确认", "支付密码", "金额"],
+      "anchor_candidates": ["confirm_btn", "input_box"]
+    },
+    "step2_skill_search": {
+      "query": "转账确认高风险操作",
+      "candidates": [
+        {
+          "skill_id": "vs_messaging_send",
+          "name": "vs_messaging_send",
+          "app_pattern": "wechat*,msedge",
+          "score_total": 0.81,
+          "above_v08_threshold": true
+        }
+      ]
+    },
+    "step3_scope_validation_blocks": {
+      "method": "SkillScopeValidator.ValidateMigration",
+      "checks": [
+        {
+          "check": "App 'chinabank' in SupportedApps ['wechat*', 'msedge']",
+          "result": "FAIL",
+          "reason": "App 'chinabank' not in supported apps: wechat*,msedge"
+        }
+      ],
+      "result": "App 'chinabank' not in supported apps: wechat*,msedge",
+      "blocked": true,
+      "early_exit": true
+    },
+    "step4_post_filter": {
+      "original_count": 1,
+      "filtered_count": 0,
+      "removed_skill": "vs_messaging_send",
+      "block_reason": "App 'chinabank' not in supported apps: wechat*,msedge"
+    },
+    "step5_vacp_execution": {
+      "task": "转账确认高风险操作",
+      "skill_hint": null,
+      "skill_hint_injected": false,
+      "execution_mode": "standard_vacp_extra_cautious",
+      "risk_gate": "BLOCKED_UNTIL_CONFIRM"
+    }
+  },
+  "comparison_v08_vs_v09": {
+    "v08_behavior": {
+      "high_score_candidate": "vs_messaging_send (0.81 >= 0.7)",
+      "skill_injected": true,
+      "negative_transfer_prevented": false
+    },
+    "v09_behavior": {
+      "high_score_candidate": "vs_messaging_send found",
+      "skill_scope_validated": true,
+      "skill_injected": false,
+      "negative_transfer_prevented": true
+    }
+  },
+  "acceptance": {
+    "high_score_candidate_found": true,
+    "score_above_07_threshold": true,
+    "scope_validator_returned_block_reason": true,
+    "candidate_filtered_from_results": true,
+    "skill_hint_not_injected": true,
+    "vacp_executed_without_hint": true,
+    "block_reason_logged": true
+  }
+}

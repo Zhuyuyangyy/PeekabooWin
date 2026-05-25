@@ -145,5 +145,17 @@ peekaboo-win skill-seed
 - [x] V0.6: VACP — Vision-Action Closed-loop Planner（风险门控 + 执行验证 + 失败恢复）
   - [x] V0.6.1: Risk Gate evidence（高风险操作阻断）
   - [x] V0.6.2: OCR-grounded AI interaction（豆包网页 AI 交互闭环）
-- [x] **V0.7: Visual Skill Memory（UI 模式记忆与复用）** ← current
-- [ ] V0.8: Hybrid Perception（UIA + OCR + GPT Vision 融合）
+- [x] **V0.8: Skill-Guided Execution（多维评分 + 执行策略 + SkillHint）**
+  - skill-search / skill-use-preview / skill-execute-guided
+  - SkillMatchScore（AppMatch / TextMatch / ActionMatch / RiskMatch / Recency）
+  - SkillExecutionPolicy（L0 高风险任务硬拦截）
+  - SkillHint 注入 VacpRequest（影响 ranking，不 bypass VACP）
+- [x] **V0.9: Multi-App Skill Generalization（跨应用迁移 + 安全边界）**
+  - AppProfile + WindowSignature 实时窗口上下文
+  - SkillScope + SkillScopeValidator（App/WindowType/Anchor/风险域校验）
+  - AnchorMapping（逻辑锚点 → OCR 文本映射）
+  - Negative Transfer Guard（高相似度技能跨危险域迁移拦截）
+  - skill-search-context（窗口感知搜索）
+  - Demo11: 跨应用文本输入（Notepad → Doubao Web）
+  - Demo12: 跨窗口弹窗确认（Save Dialog → Error Dialog）
+  - Demo13: 负迁移拦截（Score≥0.7 但 RiskDomain=Payment → BLOCKED）

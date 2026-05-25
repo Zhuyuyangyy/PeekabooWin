@@ -1,0 +1,62 @@
+{
+  "demo": "demo12_dialog_confirm_migration",
+  "title": "Dialog Confirm Skill Cross-Window",
+  "version": "V0.9",
+  "trace": {
+    "step1_app_profile_save_dialog": {
+      "app_name": "msedge",
+      "window_title": "另存为",
+      "window_type": "Dialog",
+      "input_mode": "ButtonClick",
+      "risk_domain": "Safe",
+      "visible_text_hints": ["保存", "取消", "×", "关闭"],
+      "anchor_candidates": ["cancel_btn", "close_btn"]
+    },
+    "step2_skill_search": {
+      "query": "关闭确认弹窗",
+      "top_candidate": {
+        "skill_id": "vs_dialog_close",
+        "scope": {
+          "supported_apps": ["*"],
+          "supported_window_types": ["Dialog"],
+          "required_anchors": ["close_btn"],
+          "forbidden_domains": [],
+          "min_risk_level": "L0"
+        },
+        "total_score": 0.88
+      }
+    },
+    "step3_scope_validation": {
+      "checks": [
+        {"check": "App wildcard '*' matches 'msedge'", "result": "PASS"},
+        {"check": "WindowType Dialog in [Dialog]", "result": "PASS"},
+        {"check": "RequiredAnchors ['close_btn'] in candidates", "result": "PASS ('×'/'关闭' found)"},
+        {"check": "ForbiddenDomains check", "result": "PASS"}
+      ],
+      "result": null,
+      "blocked": false
+    },
+    "step4_vacp_execution": {
+      "task": "关闭确认弹窗",
+      "selected_action": "click",
+      "target": "× / 关闭 button",
+      "result": "SUCCESS (dialog closed)"
+    },
+    "step5_second_dialog_test": {
+      "window_title": "错误",
+      "window_type": "Dialog",
+      "risk_domain": "Safe",
+      "visible_text_hints": ["确定", "错误", "×"],
+      "anchor_candidates": ["confirm_btn", "close_btn"],
+      "scope_validation_result": null,
+      "blocked": false,
+      "same_skill_used": true
+    }
+  },
+  "acceptance": {
+    "dialog_window_type_detected": true,
+    "required_anchors_matched": true,
+    "scope_validated_both_dialogs": true,
+    "dialog_closed_successfully": true
+  }
+}
