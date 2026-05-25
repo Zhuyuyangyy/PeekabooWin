@@ -1,0 +1,6 @@
+@PeekabooWin.ApiServer_HostAddress = http://localhost:5160
+
+GET {{PeekabooWin.ApiServer_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
