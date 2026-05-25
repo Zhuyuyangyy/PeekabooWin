@@ -262,11 +262,18 @@ public class SeeService
             return null;
 
         var best = candidates.OrderByDescending(c => c.score).First();
+        var isDangerous = IsDangerousElement(best.Element);
+        var matchedKeywords = DangerousKeywords
+            .Where(kw => best.Element.Name.Contains(kw, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
         return new FuzzyMatchResult
         {
             Element = best.Element,
             Score = best.Score,
             MatchType = best.MatchType,
+            IsPotentiallyDangerous = isDangerous,
+            DangerWarning = isDangerous ? $"Matched dangerous keywords: {string.Join(", ", matchedKeywords)}" : null,
             AllCandidates = candidates.OrderByDescending(c => c.score).ToList()
         };
     }
@@ -411,6 +418,8 @@ public class SeeService
         public SeeElement? Element { get; set; }
         public double Score { get; set; }
         public string MatchType { get; set; } = "";
+        public bool IsPotentiallyDangerous { get; set; }
+        public string? DangerWarning { get; set; }
         public List<(SeeElement Element, double Score, string MatchType)> AllCandidates { get; set; } = new();
     }
 

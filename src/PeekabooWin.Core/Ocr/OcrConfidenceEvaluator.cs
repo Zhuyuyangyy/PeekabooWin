@@ -28,7 +28,7 @@ public class OcrConfidenceEvaluator
             return assessment;
         }
 
-        assessment.AverageWordConfidence = result.Words.Average(w => w.Confidence);
+        assessment.EstimatedWordConfidence = result.Words.Average(w => w.Confidence);
         assessment.MinWordConfidence = result.Words.Min(w => w.Confidence);
         assessment.MaxWordConfidence = result.Words.Max(w => w.Confidence);
 
@@ -39,7 +39,7 @@ public class OcrConfidenceEvaluator
 
         var scores = new List<double>
         {
-            assessment.AverageWordConfidence * 0.3,
+            assessment.EstimatedWordConfidence * 0.3,
             (1.0 - Math.Abs(assessment.UnusualCharacterRatio - 0.1) / 0.5) * 0.2,
             assessment.TextDensity > 0 ? Math.Min(1.0, assessment.TextDensity) * 0.2 : 0.3,
             assessment.LineConsistency * 0.15,
@@ -235,8 +235,8 @@ public class OcrQualityAssessment
     public string? ErrorMessage { get; set; }
     public string Text { get; set; } = "";
     public int WordCount { get; set; }
-    public double Confidence { get; set; }
-    public double AverageWordConfidence { get; set; }
+    public double EstimatedConfidence { get; set; }
+    public double EstimatedWordConfidence { get; set; }
     public double MinWordConfidence { get; set; }
     public double MaxWordConfidence { get; set; }
     public double TextDensity { get; set; }

@@ -62,8 +62,6 @@ public class TesseractOcrEngine : IOcrEngine
         {
             bitmap.Save(tempInput, System.Drawing.Imaging.ImageFormat.Png);
 
-            var args = $"\"{tempInput}\" \"tempOutput.Replace("\\", "/")\" -l {_language} hocr";
-
             var psi = new ProcessStartInfo
             {
                 FileName = _tesseractExe,
@@ -178,8 +176,7 @@ public class TesseractOcrEngine : IOcrEngine
             Words = words,
             Language = _language,
             Confidence = words.Count > 0 ? words.Average(w => w.Confidence) : 0,
-            Engine = "Tesseract",
-            LineCount = lineMatches.Count
+            Engine = "Tesseract"
         };
     }
 
