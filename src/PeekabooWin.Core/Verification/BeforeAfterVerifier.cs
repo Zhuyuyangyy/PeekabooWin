@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Drawing.Imaging;
+using PeekabooWin.Core.Infrastructure;
 using PeekabooWin.Core.Perception;
 
 namespace PeekabooWin.Core.Verification;
@@ -108,9 +109,10 @@ public class BeforeAfterVerifier
             if (totalSamples == 0) return 0.5;
             return Math.Min(1.0, (double)diffPixels / totalSamples);
         }
-        catch
+        catch (Exception ex)
         {
-            return 0.5; // 出错返回中性值
+            PekaLogger.Warn("BeforeAfterVerifier", "Visual change computation failed", ex);
+            return 0.5;
         }
     }
 

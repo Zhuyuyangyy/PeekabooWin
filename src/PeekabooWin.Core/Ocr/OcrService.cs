@@ -5,6 +5,7 @@ using System.Drawing.Imaging;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
+using PeekabooWin.Core.Infrastructure;
 using PeekabooWin.Core.Models;
 using WGM = Windows.Graphics.Imaging;
 using WMD = Windows.Media.Ocr;
@@ -56,7 +57,7 @@ public class OcrService : IDisposable
                     softwareBitmap = converted;
                 }
 
-                var result = RecognizeSoftwareBitmap(softwareBitmap);
+                var result = await RecognizeSoftwareBitmapAsync(softwareBitmap);
                 softwareBitmap.Dispose();
                 return result;
             });
@@ -72,45 +73,41 @@ public class OcrService : IDisposable
     /// </summary>
     public async Task<OcrResult> RecognizeBitmapAsync(Bitmap bitmap)
     {
-        return await Task.Run(() =>
+        try
         {
+            var tempPath = Path.Combine(Path.GetTempPath(), $"ocr_{Guid.NewGuid():N}.png");
+            bitmap.Save(tempPath, ImageFormat.Png);
             try
             {
-                var tempPath = Path.Combine(Path.GetTempPath(), $"ocr_{Guid.NewGuid():N}.png");
-                bitmap.Save(tempPath, ImageFormat.Png);
-                try
+                var file = await WS.StorageFile.GetFileFromPathAsync(tempPath);
+                using var stream = await file.OpenAsync(WS.FileAccessMode.Read);
+                var decoder = await WGM.BitmapDecoder.CreateAsync(stream);
+                var softwareBitmap = await decoder.GetSoftwareBitmapAsync();
+
+                WGM.SoftwareBitmap? converted = null;
+                if (softwareBitmap.BitmapPixelFormat != WGM.BitmapPixelFormat.Bgra8)
                 {
-                    var file = WS.StorageFile.GetFileFromPathAsync(tempPath).GetAwaiter().GetResult();
-                    using var stream = file.OpenAsync(WS.FileAccessMode.Read).GetAwaiter().GetResult();
-                    var decoder = WGM.BitmapDecoder.CreateAsync(stream).GetAwaiter().GetResult();
-                    var softwareBitmap = decoder.GetSoftwareBitmapAsync().GetAwaiter().GetResult();
-
-                    // Ensure BGRA8
-                    WGM.SoftwareBitmap? converted = null;
-                    if (softwareBitmap.BitmapPixelFormat != WGM.BitmapPixelFormat.Bgra8)
-                    {
-                        converted = WGM.SoftwareBitmap.Convert(
-                            softwareBitmap,
-                            WGM.BitmapPixelFormat.Bgra8,
-                            WGM.BitmapAlphaMode.Premultiplied);
-                        softwareBitmap.Dispose();
-                        softwareBitmap = converted;
-                    }
-
-                    var result = RecognizeSoftwareBitmap(softwareBitmap);
+                    converted = WGM.SoftwareBitmap.Convert(
+                        softwareBitmap,
+                        WGM.BitmapPixelFormat.Bgra8,
+                        WGM.BitmapAlphaMode.Premultiplied);
                     softwareBitmap.Dispose();
-                    return result;
+                    softwareBitmap = converted;
                 }
-                finally
-                {
-                    File.Delete(tempPath);
-                }
+
+                var result = await RecognizeSoftwareBitmapAsync(softwareBitmap);
+                softwareBitmap.Dispose();
+                return result;
             }
-            catch (Exception ex)
+            finally
             {
-                return new OcrResult { Text = "", Error = ex.Message };
+                File.Delete(tempPath);
             }
-        });
+        }
+        catch (Exception ex)
+        {
+            return new OcrResult { Text = "", Error = ex.Message };
+        }
     }
 
     /// <summary>
@@ -133,7 +130,7 @@ public class OcrService : IDisposable
         }
     }
 
-    private OcrResult RecognizeSoftwareBitmap(WGM.SoftwareBitmap softwareBitmap)
+    private async Task<OcrResult> RecognizeSoftwareBitmapAsync(WGM.SoftwareBitmap softwareBitmap)
     {
         try
         {
@@ -145,7 +142,7 @@ public class OcrService : IDisposable
                 var language = new WGL.Language(langTag);
                 engine = WMD.OcrEngine.TryCreateFromLanguage(language);
             }
-            catch { }
+            catch (Exception ex) { PekaLogger.Warn("OcrService", "Language creation failed", ex); }
 
             if (engine == null)
                 engine = WMD.OcrEngine.TryCreateFromUserProfileLanguages();
@@ -153,7 +150,7 @@ public class OcrService : IDisposable
             if (engine == null)
                 return new OcrResult { Text = "", Error = "No OCR engine available" };
 
-            var ocrResult = engine.RecognizeAsync(softwareBitmap).GetAwaiter().GetResult();
+            var ocrResult = await engine.RecognizeAsync(softwareBitmap);
 
             if (ocrResult == null)
                 return new OcrResult { Text = "", Error = "OCR returned null result" };

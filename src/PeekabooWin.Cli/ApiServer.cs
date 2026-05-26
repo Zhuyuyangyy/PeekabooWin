@@ -330,7 +330,7 @@ public class ApiServer
 
                 var lang = req?.lang ?? "chi_sim+eng";
                 using var ocrService = new OcrService(lang);
-                var ocrResult = ocrService.RecognizeImageAsync(imgPath).GetAwaiter().GetResult();
+                var ocrResult = await ocrService.RecognizeImageAsync(imgPath);
 
                 if (!string.IsNullOrEmpty(req?.text))
                 {
@@ -402,7 +402,7 @@ public class ApiServer
             }
 
             case "type": {
-                var text = args.GetValueOrDefault("text") ?? args.GetValueOrDefault("\"");
+                var text = args.GetValueOrDefault("text") ?? args.GetValueOrDefault("\"") ?? "";
                 if (text.StartsWith("\"") && text.EndsWith("\""))
                     text = text.Substring(1, text.Length - 2);
                 var r = _inputService.TypeText(text);

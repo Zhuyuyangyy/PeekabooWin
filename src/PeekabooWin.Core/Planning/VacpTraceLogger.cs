@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using PeekabooWin.Core.Infrastructure;
 using PeekabooWin.Core.Perception;
 
 namespace PeekabooWin.Core.Planning;
@@ -72,7 +73,7 @@ public class VacpTraceLogger
             File.WriteAllBytes(filePath, imageBytes);
             return filePath;
         }
-        catch { return null; }
+        catch (Exception ex) { PekaLogger.Warn("VacpTraceLogger", "SaveScreenshot failed", ex); return null; }
     }
 
     public void FinishTaskTrace(VacpTaskTrace taskTrace)

@@ -1,7 +1,8 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using PeekabooWin.Core.Capture;
+using PeekabooWin.Core.Infrastructure;
 using PeekabooWin.Core.Memory;
 using PeekabooWin.Core.Models;
 using PeekabooWin.Core.Ocr;
@@ -23,6 +24,11 @@ public class VacpSkillIntegration
     public SkillExecutionPolicy Policy => _policy;
     public WindowSignature BuildWindowSignature(string? windowTitle = null)
     {
+        return BuildWindowSignatureAsync(windowTitle).GetAwaiter().GetResult();
+    }
+
+    public async Task<WindowSignature> BuildWindowSignatureAsync(string? windowTitle = null)
+    {
         var sig = new WindowSignature { CapturedAt = DateTime.UtcNow };
         var windowService = new WindowService();
         var captureService = new CaptureService(windowService);
@@ -31,7 +37,7 @@ public class VacpSkillIntegration
         var targetWin = string.IsNullOrEmpty(windowTitle) ? allWindows.FirstOrDefault() : allWindows.FirstOrDefault(w => w.Title.Contains(windowTitle, StringComparison.OrdinalIgnoreCase));
         if (targetWin != null) { sig.ProcessName = targetWin.ProcessName; sig.WindowTitle = targetWin.Title; var (wt, im, rd) = ClassifyWindow(targetWin); sig.WindowType = wt; sig.InputMode = im; sig.RiskDomain = rd; }
         var tempPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "sig_" + Guid.NewGuid().ToString("N") + ".png");
-        try { captureService.CaptureWindow(targetWin?.Title ?? "", tempPath); if (System.IO.File.Exists(tempPath)) { var ocrResult = ocrService.RecognizeImageAsync(tempPath).GetAwaiter().GetResult(); sig.VisibleTexts = ocrResult.Words.Select(w => w.Text).Distinct().ToList(); } } finally { try { System.IO.File.Delete(tempPath); } catch { } }
+        try { captureService.CaptureWindow(targetWin?.Title ?? "", tempPath); if (System.IO.File.Exists(tempPath)) { var ocrResult = await ocrService.RecognizeImageAsync(tempPath); sig.VisibleTexts = ocrResult.Words.Select(w => w.Text).Distinct().ToList(); } } finally { try { System.IO.File.Delete(tempPath); } catch (Exception ex) { PekaLogger.Warn("VacpSkillIntegration", "Failed to delete temp file: " + tempPath, ex); } }
         return sig;
     }
     public List<SkillSearchResult> SearchWithContext(string taskText, string? windowTitle = null)
@@ -41,7 +47,7 @@ public class VacpSkillIntegration
         var validator = new SkillScopeValidator();
         return results.Where(r => { if (r.Skill.Scope == null) return true; var app = AppProfile.FromWindowSignature(sig); var scopeResult = validator.Validate(r.Skill, app); if (!scopeResult.IsValid) { r.Reason = "[BLOCKED] " + scopeResult.Reason; return false; } return true; }).ToList();
     }
-    public void AfterSuccess(VacpTaskTrace taskTrace) { try { var skill = _extractor.Extract(taskTrace); if (skill != null) { EnrichSkillFromTrace(skill, taskTrace); _store.Add(skill); } } catch { } }
+    public void AfterSuccess(VacpTaskTrace taskTrace) { try { var skill = _extractor.Extract(taskTrace); if (skill != null) { EnrichSkillFromTrace(skill, taskTrace); _store.Add(skill); } } catch (Exception ex) { PekaLogger.Warn("VacpSkillIntegration", "AfterSuccess failed", ex); } }
     public SkillMatch? BeforePlanning(string appPattern, string screenType) { var skill = _retriever.Retrieve(appPattern, screenType, minConfidence: 0.75); if (skill == null) return null; return new SkillMatch { Skill = skill, Confidence = ComputeConfidence(skill), CanSkipVision = skill.SuccessRate >= 0.9 && skill.UsageCount >= 2 }; }
     public IReadOnlyList<VisualSkill> GetAllSkills() => _store.GetAll();
     public List<(VisualSkill skill, double confidence)> RankSkills(string appPattern, string screenType) => _retriever.Rank(appPattern, screenType, top: 5);

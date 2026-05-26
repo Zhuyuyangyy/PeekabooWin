@@ -6,6 +6,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using PeekabooWin.Core.Capture;
+using PeekabooWin.Core.Infrastructure;
 using PeekabooWin.Core.Input;
 using PeekabooWin.Core.Models;
 using PeekabooWin.Core.Ocr;
@@ -33,6 +34,7 @@ public class AgentService
     [DllImport("user32.dll")]
     private static extern IntPtr GetForegroundWindow();
 
+    private readonly AgentOrchestrator? _orchestrator;
     private readonly WindowService _windowService;
     private readonly CaptureService _captureService;
     private readonly InputService _inputService;
@@ -43,7 +45,6 @@ public class AgentService
     private const string MINIMAX_API = "https://api.minimax.chat/v1/chat/completions";
     private const string MINIMAX_MODEL = "MiniMax-M2.7";
 
-    // Tools available to the agent
     private static readonly List<ToolDescriptor> AvailableTools = new()
     {
         new ToolDescriptor { Name = "list-windows", Description = "List all visible windows. Optionally filter by keyword.", Parameters = new() { ["keyword"] = "optional window title keyword" } },
@@ -73,11 +74,26 @@ public class AgentService
         _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
     }
 
-    /// <summary>
-    /// Execute a natural language task
-    /// </summary>
+    public AgentService(AgentOrchestrator orchestrator)
+    {
+        _orchestrator = orchestrator;
+        _windowService = null!;
+        _captureService = null!;
+        _inputService = null!;
+        _uiaService = null!;
+        _ocrService = null!;
+        _httpClient = null!;
+    }
+
     public AgentTaskResponse ExecuteTask(AgentTaskRequest request)
     {
+        return ExecuteTaskAsync(request).GetAwaiter().GetResult();
+    }
+
+    public async Task<AgentTaskResponse> ExecuteTaskAsync(AgentTaskRequest request)
+    {
+        if (_orchestrator != null)
+            return await _orchestrator.RunAsync(request);
         var response = new AgentTaskResponse
         {
             Task = request.Task,
@@ -86,11 +102,9 @@ public class AgentService
 
         try
         {
-            // Step 1: Parse task into action plan
             var plan = ParseTask(request.Task, request.Context);
             var steps = new List<AgentStep>();
 
-            // Step 2: Execute each step
             for (int i = 0; i < Math.Min(plan.Count, request.MaxSteps); i++)
             {
                 var step = plan[i];
@@ -104,14 +118,13 @@ public class AgentService
 
                 try
                 {
-                    var (success, result) = ExecuteAction(step.Action, step.Args);
+                    var (success, result) = await ExecuteActionAsync(step.Action, step.Args);
                     stepResult.Success = success;
                     stepResult.Result = result;
                     steps.Add(stepResult);
 
                     if (!success && !request.DryRun)
                     {
-                        // Abort on failure unless dry-run
                         break;
                     }
                 }
@@ -477,6 +490,11 @@ Output: [
 
     private (bool success, string result) ExecuteAction(string action, Dictionary<string, string> args)
     {
+        return ExecuteActionAsync(action, args).GetAwaiter().GetResult();
+    }
+
+    private async Task<(bool success, string result)> ExecuteActionAsync(string action, Dictionary<string, string> args)
+    {
         switch (action)
         {
             case "click":
@@ -536,7 +554,7 @@ Output: [
                 }
                 if (!cap.Success) return (false, $"Screenshot failed: {cap.Error}");
 
-                var ocrResult = _ocrService.RecognizeImageAsync(outPath).GetAwaiter().GetResult();
+                var ocrResult = await _ocrService.RecognizeImageAsync(outPath);
                 if (!string.IsNullOrEmpty(ocrResult.Error))
                     return (false, $"OCR error: {ocrResult.Error}");
 
@@ -544,7 +562,6 @@ Output: [
                 if (center == null)
                     return (false, $"Text '{text}' not found. Recognized: {ocrResult.Text.Substring(0, Math.Min(100, ocrResult.Text.Length))}");
 
-                // If captured from window, add window offset
                 int screenX = center.Value.x;
                 int screenY = center.Value.y;
                 if (!string.IsNullOrEmpty(window))
@@ -557,13 +574,12 @@ Output: [
                     }
                 }
 
-                try { File.Delete(outPath); } catch { }
+                try { File.Delete(outPath); } catch (Exception ex) { PekaLogger.Warn("AgentService", "Failed to delete temp file: " + outPath, ex); }
                 return (true, $"Found '{text}' at screen({screenX}, {screenY}) [window-relative: ({center.Value.x}, {center.Value.y})]");
             }
 
             case "ocr-click":
             {
-                // OCR find text, then click it — two-step as one
                 var window = args.GetValueOrDefault("window");
                 var text = args["text"];
                 var outPath = Path.Combine(Path.GetTempPath(), $"ocr_click_{Guid.NewGuid()}.png");
@@ -581,7 +597,7 @@ Output: [
                 }
                 if (!cap.Success) return (false, $"Screenshot failed: {cap.Error}");
 
-                var ocrResult = _ocrService.RecognizeImageAsync(outPath).GetAwaiter().GetResult();
+                var ocrResult = await _ocrService.RecognizeImageAsync(outPath);
                 if (!string.IsNullOrEmpty(ocrResult.Error))
                     return (false, $"OCR error: {ocrResult.Error}");
 
@@ -602,7 +618,7 @@ Output: [
                 }
 
                 _inputService.Click(screenX, screenY);
-                try { File.Delete(outPath); } catch { }
+                try { File.Delete(outPath); } catch (Exception ex) { PekaLogger.Warn("AgentService", "Failed to delete temp file: " + outPath, ex); }
                 return (true, $"OCR-click '{text}' at screen({screenX}, {screenY})");
             }
 
@@ -772,12 +788,11 @@ Output: [
 
                 // Use OcrService to recognize and find text
                 using var ocrService = new OcrService("chi_sim+eng");
-                var result = ocrService.RecognizeImageAsync(outPath).GetAwaiter().GetResult();
+                var result = await ocrService.RecognizeImageAsync(outPath);
 
                 if (result.Error != null)
                     return (false, $"OCR failed: {result.Error}");
 
-                // Find the text
                 var words = ocrService.FindWords(result, text);
                 if (words.Count == 0)
                     return (false, $"Text not found: {text}");
@@ -802,7 +817,7 @@ Output: [
                     return (false, $"Screenshot failed: {cap.Error}");
 
                 using var ocrService = new OcrService("chi_sim+eng");
-                var result = ocrService.RecognizeImageAsync(outPath).GetAwaiter().GetResult();
+                var result = await ocrService.RecognizeImageAsync(outPath);
 
                 if (result.Error != null)
                     return (false, $"OCR failed: {result.Error}");
@@ -819,6 +834,11 @@ Output: [
     }
 
     private string CallMiniMax(string systemPrompt, string userPrompt, string apiKey)
+    {
+        return CallMiniMaxAsync(systemPrompt, userPrompt, apiKey).GetAwaiter().GetResult();
+    }
+
+    private async Task<string> CallMiniMaxAsync(string systemPrompt, string userPrompt, string apiKey)
     {
         var requestBody = new
         {
@@ -839,10 +859,10 @@ Output: [
         request.Headers.Add("Authorization", $"Bearer {apiKey}");
         request.Content = content;
 
-        var response = _httpClient.SendAsync(request).GetAwaiter().GetResult();
+        var response = await _httpClient.SendAsync(request);
         response.EnsureSuccessStatusCode();
 
-        var responseJson = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+        var responseJson = await response.Content.ReadAsStringAsync();
         var responseObj = JsonSerializer.Deserialize<JsonElement>(responseJson);
 
         return responseObj.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString() ?? "[]";

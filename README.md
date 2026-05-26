@@ -1,4 +1,4 @@
-﻿# PeekabooWin - Windows Desktop Automation Kit
+# PeekabooWin - Windows Desktop Automation Kit
 
 > 对应 macOS Peekaboo 架构，重心放在 Windows 原生自动化层。
 
@@ -132,24 +132,32 @@ peekaboo-win skill-search-context --task "confirm dialog" --window "另存为"
 > - **Negative Transfer Guard**：高风险跨域技能迁移自动拦截（L0 skill + payment/admin = BLOCK）
 > - **skill-search-context**：返回 window_signature + app_profile + anchor_candidates + results（含 scope 校验结果）
 
+### V0.10 工程硬化 — DI + Async + 错误模型 + Skill Replay + VACP-Agent 统一
+```bash
+# Skill Replay（真执行，支持 dry-run）
+peekaboo-win skill-replay --id vs_notepad_edit --dry-run
+peekaboo-win skill-replay --id vs_dialog_confirm --execute
+peekaboo-win skill-replay --id vs_notepad_edit --execute --window "记事本"
+```
+
 ## 架构图
 
 ```
 ┌─────────────────────────────────────────────────────┐
 │                   PeekabooWin.Cli                   │
-│  HandleSkillSearch / HandleAgent / HandleInspect.. │
+│  CommandRouter → ICommandHandler (DI-injected)      │
 └──────────────┬──────────────────────────────────────┘
                │
 ┌──────────────▼──────────────────────────────────────┐
 │              PeekabooWin.Core                        │
 │  ┌──────────────┐  ┌────────────┐  ┌─────────────┐ │
-│  │   Agent/     │  │   Memory/  │  │  Infrastructure│
-│  │ VacpIntegration│  │  VisualSkill│  │  (P/Invoke)  │ │
-│  │              │  │  SkillScope │  │  UIAutomation│ │
-│  │  - VacpPlan  │  │  AppProfile │  │  Win32 API   │ │
-│  │  - SkillHint│  │  WindowSig  │  │              │ │
-│  │  - SkillMatch│  │  AnchorMap  │  │              │ │
-│  │  - Decide() │  │  NegativeXfer│  │              │ │
+│  │   Agent/     │  │   Memory/  │  │Infrastructure│ │
+│  │ Orchestrator │  │ VisualSkill│  │  PekaLogger  │ │
+│  │ TaskParser   │  │ SkillReplay│  │  TraceIdProv │ │
+│  │ ActionExec   │  │ SkillScope │  │  TempFileMgr │ │
+│  │ RiskGate     │  │ AppProfile │  │  UIAutomation│ │
+│  │ VACP Integ   │  │ WindowSig  │  │  Win32 API   │ │
+│  │ TraceLogger  │  │ AnchorMap  │  │  Exceptions  │ │
 │  └──────────────┘  └────────────┘  └─────────────┘ │
 └──────────────────────────────────────────────────────┘
 ```
@@ -178,30 +186,31 @@ peekaboo-win skill-search-context --task "confirm dialog" --window "另存为"
   - Demo11: 跨应用文本输入（Notepad → Doubao Web，score=0.78，INJECT）
   - Demo12: 跨窗口弹窗确认（Save Dialog → Error Dialog，blocked by forbidden domain）
   - Demo13: 高风险转移拦截（L0 skill on payment app = BLOCK）
+- [x] **V0.10: Engineering Hardening（工程硬化）**
+  - V0.10.0: DI 容器 + ICommandHandler + CommandRouter（Program.cs 1159→107 行）
+  - V0.10.1: async/await 全链路 + TempFileManager（16→4 GetAwaiter）
+  - V0.10.2: PeekabooException + error_code/hint/trace_id + PekaLogger（19 处 catch{} 消除）
+  - V0.10.3: SkillReplayEngine 真执行（dry-run/execute/risk-gate）
+  - V0.10.4: AgentOrchestrator 统一路径（TaskParser → RiskGate → ActionExecutor → Trace）
 
 ## 项目结构
 
 ```
 PeekabooWin/
 ├── src/
-│   ├── PeekabooWin.Cli/          # CLI 入口，所有命令处理器
-│   │   └── Program.cs
+│   ├── PeekabooWin.Cli/          # CLI 入口
+│   │   ├── Program.cs            # 最小入口（~107 行）
+│   │   ├── Bootstrap/            # DI 注册 + CommandRouter
+│   │   └── Commands/             # ICommandHandler 实现
 │   └── PeekabooWin.Core/         # 核心逻辑
-│       ├── Agent/                # VACP + SkillHint + VacpSkillIntegration
-│       ├── Memory/              # V0.9 跨应用迁移模块
-│       │   ├── WindowSignature.cs
-│       │   ├── AppProfile.cs
-│       │   ├── SkillScope.cs + SkillScopeValidator.cs
-│       │   ├── VisualAnchor.cs + AnchorMapping.cs
-│       │   ├── NegativeTransferGuard.cs
-│       │   └── SkillTransferController.cs
-│       ├── Models/              # 枚举类型
-│       │   ├── WindowType.cs / InputMode.cs / RiskDomain.cs
-│       └── Infrastructure/     # Win32 / UIA / Input
+│       ├── Agent/                # AgentOrchestrator + TaskParser + ActionExecutor + VACP
+│       ├── Memory/               # SkillReplayEngine + VisualSkill + SkillScope
+│       ├── Models/               # CommandResult + 枚举类型
+│       ├── Exceptions/           # PeekabooException + 6 子类
+│       └── Infrastructure/       # PekaLogger + TraceIdProvider + TempFileManager + Win32/UIA
+├── tests/
+│   └── PeekabooWin.Core.Tests/   # xUnit 测试（30 tests）
 └── docs/
-    ├── V0.9_SPEC.md             # V0.9 技术规格
-    ├── demo/                    # Demo 11/12/13 场景文档
-    └── releases/               # 版本发布笔记 + 冒烟测试
 ```
 
 ## 相关文档
@@ -211,3 +220,4 @@ PeekabooWin/
 - [Demo 11: 跨应用文本输入](./docs/demo/Demo11_CrossApp_TextInput_Transfer.md)
 - [Demo 12: 跨窗口弹窗确认](./docs/demo/Demo12_CrossApp_DialogConfirm_Transfer.md)
 - [Demo 13: 高风险转移拦截](./docs/demo/Demo13_HighRisk_Blocking.md)
+- [已知问题](./docs/known_issues.md)

@@ -44,7 +44,7 @@ public class AppProfile
 
     public void Touch() { LastSeen = DateTime.UtcNow; VisitCount++; }
 
-    public bool IsCompatibleWith(SkillScope scope)
+    public bool IsCompatibleWith(SkillScope? scope)
     {
         if (scope == null || scope.SupportedApps.Count == 0) return true;
         return scope.SupportedApps.Any(a => AppId.Contains(a) || a == "*");

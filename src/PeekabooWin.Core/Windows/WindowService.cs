@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
+using PeekabooWin.Core.Infrastructure;
 using PeekabooWin.Core.Models;
 
 namespace PeekabooWin.Core.Windows;
@@ -100,7 +101,7 @@ public class WindowService
                 var proc = Process.GetProcessById((int)pid);
                 processName = proc.ProcessName;
             }
-            catch { }
+            catch (Exception ex) { PekaLogger.Warn("WindowService", "Operation failed", ex); }
 
             results.Add(new WindowInfo
             {

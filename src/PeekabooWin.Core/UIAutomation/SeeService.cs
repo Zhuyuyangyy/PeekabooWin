@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Windows.Automation;
 using PeekabooWin.Core.Capture;
+using PeekabooWin.Core.Infrastructure;
 using PeekabooWin.Core.Models;
 using PeekabooWin.Core.Windows;
 
@@ -236,14 +237,14 @@ public class SeeService
                 CollectElements(child, depth + 1, maxDepth, all);
             }
         }
-        catch { }
+        catch (Exception ex) { PekaLogger.Warn("SeeService", "Operation failed", ex); }
     }
 
     private SeeElement BuildSeeElement(AutomationElement el, string elementId)
     {
         string controlType = "";
         try { controlType = el.Current.ControlType.ProgrammaticName.Replace("ControlType.", ""); }
-        catch { controlType = "Unknown"; }
+        catch (Exception ex) { PekaLogger.Warn("SeeService", "Operation failed", ex); controlType = "Unknown"; }
 
         RectInfo? box = null;
         int clickX = 0, clickY = 0;
@@ -257,7 +258,7 @@ public class SeeService
                 clickY = (int)(r.Y + r.Height / 2);
             }
         }
-        catch { }
+        catch (Exception ex) { PekaLogger.Warn("SeeService", "Operation failed", ex); }
 
         var patterns = new List<string>();
         try
@@ -265,7 +266,7 @@ public class SeeService
             foreach (var p in el.GetSupportedPatterns())
                 patterns.Add(p.ProgrammaticName.Replace("Pattern.", ""));
         }
-        catch { }
+        catch (Exception ex) { PekaLogger.Warn("SeeService", "Operation failed", ex); }
 
         string? value = null;
         try
@@ -273,15 +274,15 @@ public class SeeService
             var vp = el.GetCurrentPattern(ValuePattern.Pattern) as ValuePattern;
             if (vp != null) value = vp.Current.Value;
         }
-        catch { }
+        catch (Exception ex) { PekaLogger.Warn("SeeService", "Operation failed", ex); }
 
         bool isOffscreen = false;
         try { isOffscreen = el.Current.IsOffscreen; }
-        catch { }
+        catch (Exception ex) { PekaLogger.Warn("SeeService", "Operation failed", ex); }
 
         bool isEnabled = false;
         try { isEnabled = el.Current.IsEnabled; }
-        catch { }
+        catch (Exception ex) { PekaLogger.Warn("SeeService", "Operation failed", ex); }
 
         var seeEl = new SeeElement
         {

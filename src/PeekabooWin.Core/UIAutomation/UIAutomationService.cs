@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Windows.Automation;
+using PeekabooWin.Core.Infrastructure;
 using PeekabooWin.Core.Models;
 using PeekabooWin.Core.Windows;
 
@@ -304,7 +305,7 @@ public class UIAutomationService
                 };
             }
         }
-        catch { }
+        catch (Exception ex) { PekaLogger.Warn("UIAutomationService", "Operation failed", ex); }
 
         var patterns = new List<string>();
         try
@@ -315,7 +316,7 @@ public class UIAutomationService
                 patterns.Add(p.ProgrammaticName.Replace("Pattern.", ""));
             }
         }
-        catch { }
+        catch (Exception ex) { PekaLogger.Warn("UIAutomationService", "Operation failed", ex); }
 
         string? value = null;
         try
@@ -323,7 +324,7 @@ public class UIAutomationService
             var vp = el.GetCurrentPattern(ValuePattern.Pattern) as ValuePattern;
             if (vp != null) value = vp.Current.Value;
         }
-        catch { }
+        catch (Exception ex) { PekaLogger.Warn("UIAutomationService", "Operation failed", ex); }
 
         return new UIAElementInfo
         {
