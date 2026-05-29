@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using PeekabooWin.Core.Trace;
 
 namespace PeekabooWin.Core.Models;
 
@@ -84,6 +85,9 @@ public class AgentTaskResponse
 
     [JsonPropertyName("llm_error_code")]
     public string LlmErrorCode { get; set; } = "";
+
+    [JsonPropertyName("trace")]
+    public ExecutionTrace? Trace { get; set; }
 }
 
 public class ToolDescriptor

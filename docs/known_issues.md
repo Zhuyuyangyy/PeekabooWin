@@ -1,9 +1,15 @@
 # Known Issues
 
-## V0.13 (Visual Robustness Enhancement)
+## V0.14 (Agent Runtime Integration)
 
-- **KI-18: ActionVerifier requires real desktop for integration testing**: The `VerifyAsync` method captures screenshots and runs OCR, which requires a real Windows desktop. Unit tests only cover the model classes. Integration testing with real desktop is planned for V0.14.
-- **KI-19: RecoveryPlanner does not yet integrate with AgentOrchestrator**: The `RecoveryPlanner` is a standalone component. Integration into the `AgentOrchestrator` execution loop (auto-retry on failure) is planned for V0.14.
+- **KI-20: Trace storage not yet implemented**: The GET /api/v1/trace/{trace_id} endpoint returns a placeholder. Trace persistence (file/database) is planned for V0.15.
+- **KI-21: API v1 skill/replay requires VisualSkill lookup by ID**: The skill replay endpoint needs to look up skills by ID from the store, but the current implementation creates a new store per request. Skill persistence is needed for production use.
+- **KI-22: AgentOrchestrator constructor has 13 dependencies**: The constructor is heavy. A service locator or builder pattern would be cleaner, but this is deferred to avoid breaking changes.
+
+## V0.13 (Visual Robustness Enhancement) — Fixed in V0.14
+
+- **~~KI-18: ActionVerifier requires real desktop for integration testing~~**: Fixed in V0.14 — ActionVerifier is now integrated into AgentOrchestrator execution loop. Unit tests cover model classes; integration testing with real desktop requires manual verification.
+- **~~KI-19: RecoveryPlanner does not yet integrate with AgentOrchestrator~~**: Fixed in V0.14 — RecoveryPlanner is now integrated into AgentOrchestrator. On action failure, the orchestrator calls PlanRecovery and executes up to 1 retry with recovery steps.
 
 ## V0.12 (Stability Release)
 

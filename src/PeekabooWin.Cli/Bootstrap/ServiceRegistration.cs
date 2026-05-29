@@ -4,11 +4,12 @@ using PeekabooWin.Core.Infrastructure;
 using PeekabooWin.Core.Input;
 using PeekabooWin.Core.Memory;
 using PeekabooWin.Core.Ocr;
+using PeekabooWin.Core.Perception;
 using PeekabooWin.Core.Planning;
 using PeekabooWin.Core.Safety;
 using PeekabooWin.Core.UIAutomation;
-using PeekabooWin.Core.Windows;
 using PeekabooWin.Core.Verification;
+using PeekabooWin.Core.Windows;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace PeekabooWin.Cli.Bootstrap;
@@ -27,6 +28,9 @@ public static class ServiceRegistration
         services.AddSingleton<VisualSkillStore>();
         services.AddSingleton<VacpSkillIntegration>();
         services.AddSingleton<ActionRiskGate>();
+        services.AddSingleton<RecoveryPlanner>();
+        services.AddSingleton<ActionVerifier>();
+        services.AddSingleton<ElementCandidateRanker>();
         services.AddSingleton<SkillReplayEngine>();
         services.AddSingleton<TempFileManager>();
 

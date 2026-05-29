@@ -3,18 +3,17 @@ using System.Text;
 using System.Text.Json;
 using PeekabooWin.Core.Agent;
 using PeekabooWin.Core.Capture;
+using PeekabooWin.Core.Infrastructure;
 using PeekabooWin.Core.Input;
+using PeekabooWin.Core.Memory;
 using PeekabooWin.Core.Models;
 using PeekabooWin.Core.Ocr;
+using PeekabooWin.Core.Safety;
 using PeekabooWin.Core.UIAutomation;
 using PeekabooWin.Core.Windows;
 
 namespace PeekabooWin.Cli;
 
-/// <summary>
-/// HTTP API server for PeekabooWin. Exposes PeekabooWin primitives as REST endpoints
-/// so external agents (OpenClaw/Hermes) can drive Windows automation remotely.
-/// </summary>
 public class ApiServer
 {
     private readonly HttpListener _listener;
@@ -23,6 +22,11 @@ public class ApiServer
     private readonly InputService _inputService;
     private readonly UIAutomationService _uiaService;
     private readonly OcrService _ocrService;
+    private readonly AgentService _agentService;
+    private readonly VacpSkillIntegration _skillIntegration;
+    private readonly SkillReplayEngine _skillReplayEngine;
+    private readonly ActionRiskGate _riskGate;
+    private readonly VisualSkillStore _skillStore;
     private readonly JsonSerializerOptions _jsonOptions;
     private CancellationTokenSource? _cts;
     private Task? _serverTask;
@@ -30,7 +34,7 @@ public class ApiServer
     public int Port { get; }
     public bool IsRunning => _listener.IsListening;
 
-    public ApiServer(int port = 8080)
+    public ApiServer(int port = 8025)
     {
         Port = port;
         _listener = new HttpListener();
@@ -41,6 +45,14 @@ public class ApiServer
         _inputService = new InputService();
         _uiaService = new UIAutomationService(_windowService);
         _ocrService = new OcrService();
+        _agentService = new AgentService(_windowService, _captureService, _inputService, _uiaService, _ocrService);
+
+        _skillStore = new VisualSkillStore();
+        _skillIntegration = new VacpSkillIntegration(_skillStore);
+        _riskGate = new ActionRiskGate();
+        _skillReplayEngine = new SkillReplayEngine(
+            _windowService, _captureService, _ocrService,
+            _inputService, _uiaService, _riskGate, new TempFileManager());
 
         _jsonOptions = new JsonSerializerOptions
         {
@@ -55,7 +67,7 @@ public class ApiServer
         _listener.Start();
         _cts = new CancellationTokenSource();
         _serverTask = Task.Run(() => ServerLoop(_cts.Token));
-        Console.WriteLine($"[ApiServer] Started on http://localhost:{Port}/");
+        Console.WriteLine($"[ApiServer] V0.14 Agent Runtime started on http://localhost:{Port}/");
     }
 
     public void Stop()
@@ -76,7 +88,7 @@ public class ApiServer
             }
             catch (OperationCanceledException) { break; }
             catch (HttpListenerException) { break; }
-            catch { /* ignore */ }
+            catch { }
         }
     }
 
@@ -85,7 +97,6 @@ public class ApiServer
         var response = ctx.Response;
         var request = ctx.Request;
 
-        // Set CORS headers for cross-origin requests (OpenClaw/Hermes)
         response.Headers.Add("Access-Control-Allow-Origin", "*");
         response.Headers.Add("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
         response.Headers.Add("Access-Control-Allow-Headers", "Content-Type, Authorization");
@@ -102,14 +113,63 @@ public class ApiServer
             string path = request.Url?.AbsolutePath ?? "/";
             string method = request.HttpMethod;
 
-            // Route: GET /health
-            if (path == "/health" && method == "GET")
+            if (path == "/api/v1/health" && method == "GET")
             {
-                await RespondJson(response, 200, new { status = "ok", version = "V0.5", timestamp = DateTime.UtcNow });
+                await RespondJson(response, 200, BuildRuntimeResponse(true,
+                    decision: "ALLOW",
+                    riskLevel: "L0",
+                    actions: [],
+                    verification: new { passed = true, reason = "runtime healthy" }));
                 return;
             }
 
-            // Route: GET /windows
+            if (path == "/api/v1/task/preview" && method == "POST")
+            {
+                await HandleV1TaskPreview(request, response);
+                return;
+            }
+
+            if (path == "/api/v1/task/run" && method == "POST")
+            {
+                await HandleV1TaskRun(request, response);
+                return;
+            }
+
+            if (path == "/api/v1/skill/search" && method == "POST")
+            {
+                await HandleV1SkillSearch(request, response);
+                return;
+            }
+
+            if (path == "/api/v1/skill/replay" && method == "POST")
+            {
+                await HandleV1SkillReplay(request, response);
+                return;
+            }
+
+            if (path == "/api/v1/risk/evaluate" && method == "POST")
+            {
+                await HandleV1RiskEvaluate(request, response);
+                return;
+            }
+
+            if (path.StartsWith("/api/v1/trace/") && method == "GET")
+            {
+                var traceId = path["/api/v1/trace/".Length..];
+                await RespondJson(response, 200, BuildRuntimeResponse(true,
+                    traceId: traceId,
+                    decision: "ALLOW",
+                    riskLevel: "L0",
+                    error: "Trace storage not yet implemented"));
+                return;
+            }
+
+            if (path == "/health" && method == "GET")
+            {
+                await RespondJson(response, 200, new { status = "ok", version = "V0.14", timestamp = DateTime.UtcNow });
+                return;
+            }
+
             if (path == "/windows" && method == "GET")
             {
                 var keyword = request.QueryString["keyword"];
@@ -118,7 +178,6 @@ public class ApiServer
                 return;
             }
 
-            // Route: GET /inspect?window=X&max_depth=N
             if (path == "/inspect" && method == "GET")
             {
                 var window = request.QueryString["window"];
@@ -136,7 +195,6 @@ public class ApiServer
                 return;
             }
 
-            // Route: POST /execute (generic command executor)
             if (path == "/execute" && method == "POST")
             {
                 using var reader = new StreamReader(request.InputStream, Encoding.UTF8);
@@ -154,7 +212,6 @@ public class ApiServer
                 return;
             }
 
-            // Route: POST /click
             if (path == "/click" && method == "POST")
             {
                 using var reader = new StreamReader(request.InputStream, Encoding.UTF8);
@@ -172,7 +229,6 @@ public class ApiServer
                 return;
             }
 
-            // Route: POST /type
             if (path == "/type" && method == "POST")
             {
                 using var reader = new StreamReader(request.InputStream, Encoding.UTF8);
@@ -190,7 +246,6 @@ public class ApiServer
                 return;
             }
 
-            // Route: POST /press
             if (path == "/press" && method == "POST")
             {
                 using var reader = new StreamReader(request.InputStream, Encoding.UTF8);
@@ -208,7 +263,6 @@ public class ApiServer
                 return;
             }
 
-            // Route: POST /hotkey
             if (path == "/hotkey" && method == "POST")
             {
                 using var reader = new StreamReader(request.InputStream, Encoding.UTF8);
@@ -226,7 +280,6 @@ public class ApiServer
                 return;
             }
 
-            // Route: POST /screenshot
             if (path == "/screenshot" && method == "POST")
             {
                 using var reader = new StreamReader(request.InputStream, Encoding.UTF8);
@@ -254,7 +307,6 @@ public class ApiServer
                 return;
             }
 
-            // Route: POST /agent
             if (path == "/agent" && method == "POST")
             {
                 using var reader = new StreamReader(request.InputStream, Encoding.UTF8);
@@ -267,7 +319,6 @@ public class ApiServer
                     return;
                 }
 
-                var agentService = new AgentService(_windowService, _captureService, _inputService, _uiaService, _ocrService);
                 var agentReq = new AgentTaskRequest
                 {
                     Task = req.task,
@@ -276,12 +327,11 @@ public class ApiServer
                     Context = req.context
                 };
 
-                var result = await agentService.ExecuteTaskAsync(agentReq);
+                var result = await _agentService.ExecuteTaskAsync(agentReq);
                 await RespondJson(response, 200, result);
                 return;
             }
 
-            // Route: POST /focus-window
             if (path == "/focus-window" && method == "POST")
             {
                 using var reader = new StreamReader(request.InputStream, Encoding.UTF8);
@@ -299,7 +349,6 @@ public class ApiServer
                 return;
             }
 
-            // Route: POST /ocr
             if (path == "/ocr" && method == "POST")
             {
                 using var reader = new StreamReader(request.InputStream, Encoding.UTF8);
@@ -308,7 +357,6 @@ public class ApiServer
 
                 var imgPath = Path.Combine(Path.GetTempPath(), $"ocr_api_{Guid.NewGuid():N}.png");
 
-                // Capture
                 if (!string.IsNullOrEmpty(req?.window))
                 {
                     var cap = _captureService.CaptureWindow(req.window, imgPath);
@@ -347,7 +395,6 @@ public class ApiServer
 
                     await RespondJson(response, 200, findResult);
 
-                    // Optionally click
                     if (req.click == true && center.HasValue && center.Value.x > 0 && center.Value.y > 0)
                     {
                         var clickResult = _inputService.Click(center.Value.x, center.Value.y);
@@ -368,7 +415,6 @@ public class ApiServer
                 }
             }
 
-            // 404
             await RespondJson(response, 404, new { error = $"Route not found: {path}" });
         }
         catch (Exception ex)
@@ -377,10 +423,304 @@ public class ApiServer
         }
     }
 
+    private async Task HandleV1TaskPreview(HttpListenerRequest request, HttpListenerResponse response)
+    {
+        using var reader = new StreamReader(request.InputStream, Encoding.UTF8);
+        var body = await reader.ReadToEndAsync();
+        var req = JsonSerializer.Deserialize<ApiV1TaskRequest>(body, _jsonOptions);
+
+        if (req == null || string.IsNullOrEmpty(req.task))
+        {
+            await RespondJson(response, 400, BuildRuntimeResponse(false, error: "Missing 'task' field"));
+            return;
+        }
+
+        var traceId = GenerateTraceId();
+        var agentReq = new AgentTaskRequest
+        {
+            Task = req.task,
+            MaxSteps = req.max_steps > 0 ? req.max_steps : 5,
+            DryRun = true,
+            Context = req.context,
+            TimeoutMs = req.timeout_ms > 0 ? req.timeout_ms : 30000
+        };
+
+        var result = await _agentService.ExecuteTaskAsync(agentReq);
+
+        var actions = result.Steps.Select(s => (object)new
+        {
+            step = s.Step,
+            action = s.Action,
+            args = s.Args,
+            thought = s.Thought,
+            success = s.Success,
+            result = s.Result
+        }).ToList();
+
+        await RespondJson(response, 200, BuildRuntimeResponse(
+            ok: result.Success,
+            traceId: traceId,
+            decision: "PREVIEW",
+            riskLevel: "L0",
+            parserMode: result.ParserMode,
+            actions: actions,
+            verification: new { passed = result.Success, reason = result.Success ? "dry-run preview completed" : result.Error },
+            error: result.Error));
+    }
+
+    private async Task HandleV1TaskRun(HttpListenerRequest request, HttpListenerResponse response)
+    {
+        using var reader = new StreamReader(request.InputStream, Encoding.UTF8);
+        var body = await reader.ReadToEndAsync();
+        var req = JsonSerializer.Deserialize<ApiV1TaskRequest>(body, _jsonOptions);
+
+        if (req == null || string.IsNullOrEmpty(req.task))
+        {
+            await RespondJson(response, 400, BuildRuntimeResponse(false, error: "Missing 'task' field"));
+            return;
+        }
+
+        var traceId = GenerateTraceId();
+        var agentReq = new AgentTaskRequest
+        {
+            Task = req.task,
+            MaxSteps = req.max_steps > 0 ? req.max_steps : 5,
+            DryRun = req.dry_run,
+            Context = req.context,
+            TimeoutMs = req.timeout_ms > 0 ? req.timeout_ms : 30000
+        };
+
+        var result = await _agentService.ExecuteTaskAsync(agentReq);
+
+        var actions = result.Steps.Select(s => (object)new
+        {
+            step = s.Step,
+            action = s.Action,
+            args = s.Args,
+            thought = s.Thought,
+            success = s.Success,
+            result = s.Result
+        }).ToList();
+
+        string decision = "ALLOW";
+        string riskLevel = "L0";
+
+        if (result.Steps.Any(s => !s.Success))
+        {
+            decision = "CONFIRM";
+            riskLevel = "L1";
+        }
+
+        if (!result.Success && result.Error != null)
+        {
+            decision = "BLOCK";
+            riskLevel = "L2";
+        }
+
+        if (req.dry_run)
+        {
+            decision = "PREVIEW";
+            riskLevel = "L0";
+        }
+
+        await RespondJson(response, 200, BuildRuntimeResponse(
+            ok: result.Success,
+            traceId: traceId,
+            decision: decision,
+            riskLevel: riskLevel,
+            parserMode: result.ParserMode,
+            actions: actions,
+            verification: new { passed = result.Success, reason = result.Success ? "task completed" : (result.Error ?? "task failed") },
+            error: result.Error));
+    }
+
+    private async Task HandleV1SkillSearch(HttpListenerRequest request, HttpListenerResponse response)
+    {
+        using var reader = new StreamReader(request.InputStream, Encoding.UTF8);
+        var body = await reader.ReadToEndAsync();
+        var req = JsonSerializer.Deserialize<ApiV1SkillSearchRequest>(body, _jsonOptions);
+
+        if (req == null || string.IsNullOrEmpty(req.task))
+        {
+            await RespondJson(response, 400, BuildRuntimeResponse(false, error: "Missing 'task' field"));
+            return;
+        }
+
+        var traceId = GenerateTraceId();
+        var searchResults = _skillIntegration.Search(req.task, windowTitle: req.window_title);
+
+        var actions = searchResults.Select(r => (object)new
+        {
+            skill_id = r.Skill.SkillId,
+            name = r.Skill.Name,
+            app_pattern = r.Skill.AppPattern,
+            screen_type = r.Skill.ScreenType,
+            risk_level = r.Skill.RiskLevel,
+            score = r.Score.Total,
+            is_usable = r.Score.IsUsable,
+            reason = r.Reason
+        }).ToList();
+
+        await RespondJson(response, 200, BuildRuntimeResponse(
+            ok: true,
+            traceId: traceId,
+            decision: "ALLOW",
+            riskLevel: "L0",
+            actions: actions));
+    }
+
+    private async Task HandleV1SkillReplay(HttpListenerRequest request, HttpListenerResponse response)
+    {
+        using var reader = new StreamReader(request.InputStream, Encoding.UTF8);
+        var body = await reader.ReadToEndAsync();
+        var req = JsonSerializer.Deserialize<ApiV1SkillReplayRequest>(body, _jsonOptions);
+
+        if (req == null || string.IsNullOrEmpty(req.skill_id))
+        {
+            await RespondJson(response, 400, BuildRuntimeResponse(false, error: "Missing 'skill_id' field"));
+            return;
+        }
+
+        var traceId = GenerateTraceId();
+        var skill = _skillStore.Get(req.skill_id);
+
+        if (skill == null)
+        {
+            await RespondJson(response, 404, BuildRuntimeResponse(false,
+                traceId: traceId,
+                decision: "BLOCK",
+                riskLevel: "L2",
+                error: $"Skill not found: {req.skill_id}"));
+            return;
+        }
+
+        var report = await _skillReplayEngine.ReplayAsync(skill, req.window_title, req.dry_run);
+
+        var actions = report.StepRecords.Select(r => (object)new
+        {
+            step_index = r.StepIndex,
+            description = r.StepDescription,
+            action = r.ParsedAction,
+            target = r.Target,
+            executed = r.Executed,
+            success = r.Success,
+            dry_run_skipped = r.DryRunSkipped,
+            risk_blocked = r.RiskBlocked,
+            risk_score = r.RiskScore,
+            error = r.Error
+        }).ToList();
+
+        string decision = "ALLOW";
+        string riskLevel = "L0";
+
+        if (report.StepsBlocked > 0)
+        {
+            decision = "BLOCK";
+            riskLevel = "L2";
+        }
+        else if (req.dry_run)
+        {
+            decision = "PREVIEW";
+            riskLevel = "L0";
+        }
+
+        await RespondJson(response, 200, BuildRuntimeResponse(
+            ok: report.VerificationPassed,
+            traceId: traceId,
+            decision: decision,
+            riskLevel: riskLevel,
+            actions: actions,
+            verification: new { passed = report.VerificationPassed, reason = report.VerificationPassed ? "skill replay verified" : "skill replay verification failed" }));
+    }
+
+    private async Task HandleV1RiskEvaluate(HttpListenerRequest request, HttpListenerResponse response)
+    {
+        using var reader = new StreamReader(request.InputStream, Encoding.UTF8);
+        var body = await reader.ReadToEndAsync();
+        var req = JsonSerializer.Deserialize<ApiV1RiskEvaluateRequest>(body, _jsonOptions);
+
+        if (req == null || string.IsNullOrEmpty(req.action_type))
+        {
+            await RespondJson(response, 400, BuildRuntimeResponse(false, error: "Missing 'action_type' field"));
+            return;
+        }
+
+        var traceId = GenerateTraceId();
+        var riskContext = new ActionRiskContext
+        {
+            ActionType = req.action_type,
+            TargetLabel = req.target_label,
+            InputText = req.input_text,
+            PageType = req.page_type
+        };
+
+        var riskDecision = _riskGate.Evaluate(riskContext);
+
+        string decision = riskDecision.Decision switch
+        {
+            RiskLevel.Allow => "ALLOW",
+            RiskLevel.Confirm => "CONFIRM",
+            RiskLevel.Block => "BLOCK",
+            _ => "ALLOW"
+        };
+
+        string riskLevel = riskDecision.RiskScore switch
+        {
+            < 0.3 => "L0",
+            < 0.6 => "L1",
+            _ => "L2"
+        };
+
+        await RespondJson(response, 200, BuildRuntimeResponse(
+            ok: riskDecision.Decision != RiskLevel.Block,
+            traceId: traceId,
+            decision: decision,
+            riskLevel: riskLevel,
+            groundingScore: riskContext.GroundingScore,
+            verification: new
+            {
+                passed = riskDecision.Decision != RiskLevel.Block,
+                reason = riskDecision.Message,
+                block_reason = riskDecision.BlockReason,
+                required_confirmation = riskDecision.RequiredConfirmation
+            }));
+    }
+
+    private static string GenerateTraceId()
+    {
+        return "trace_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + "_" + Guid.NewGuid().ToString("N")[..6];
+    }
+
+    private object BuildRuntimeResponse(
+        bool ok,
+        string? traceId = null,
+        string decision = "ALLOW",
+        string riskLevel = "L0",
+        string? parserMode = null,
+        double? groundingScore = null,
+        List<object>? actions = null,
+        object? verification = null,
+        string? error = null)
+    {
+        return new
+        {
+            ok,
+            trace_id = traceId ?? GenerateTraceId(),
+            decision,
+            risk_level = riskLevel,
+            parser_mode = parserMode,
+            grounding_score = groundingScore,
+            actions = actions ?? [],
+            verification,
+            error,
+            version = "V0.14",
+            runtime = "PeekabooWin Agent Runtime",
+            timestamp = DateTime.UtcNow
+        };
+    }
+
     private object ExecuteCommand(string command, Dictionary<string, string> args)
     {
-        // Execute a CLI command via the API server's internal primitives
-        // This proxies the CLI commands through the same services used by the CLI
         switch (command.ToLower())
         {
             case "list-windows":
@@ -451,8 +791,6 @@ public class ApiServer
         response.Close();
     }
 
-    // Request DTOs
-
     private class ApiExecuteRequest
     {
         public string command { get; set; } = "";
@@ -521,5 +859,49 @@ public class ApiServer
         public string? lang { get; set; }
         [System.Text.Json.Serialization.JsonPropertyName("click")]
         public bool click { get; set; } = false;
+    }
+
+    private class ApiV1TaskRequest
+    {
+        [System.Text.Json.Serialization.JsonPropertyName("task")]
+        public string task { get; set; } = "";
+        [System.Text.Json.Serialization.JsonPropertyName("context")]
+        public string? context { get; set; }
+        [System.Text.Json.Serialization.JsonPropertyName("max_steps")]
+        public int max_steps { get; set; } = 5;
+        [System.Text.Json.Serialization.JsonPropertyName("dry_run")]
+        public bool dry_run { get; set; } = false;
+        [System.Text.Json.Serialization.JsonPropertyName("timeout_ms")]
+        public int timeout_ms { get; set; } = 30000;
+    }
+
+    private class ApiV1SkillSearchRequest
+    {
+        [System.Text.Json.Serialization.JsonPropertyName("task")]
+        public string task { get; set; } = "";
+        [System.Text.Json.Serialization.JsonPropertyName("window_title")]
+        public string? window_title { get; set; }
+    }
+
+    private class ApiV1SkillReplayRequest
+    {
+        [System.Text.Json.Serialization.JsonPropertyName("skill_id")]
+        public string skill_id { get; set; } = "";
+        [System.Text.Json.Serialization.JsonPropertyName("window_title")]
+        public string? window_title { get; set; }
+        [System.Text.Json.Serialization.JsonPropertyName("dry_run")]
+        public bool dry_run { get; set; } = true;
+    }
+
+    private class ApiV1RiskEvaluateRequest
+    {
+        [System.Text.Json.Serialization.JsonPropertyName("action_type")]
+        public string action_type { get; set; } = "";
+        [System.Text.Json.Serialization.JsonPropertyName("target_label")]
+        public string? target_label { get; set; }
+        [System.Text.Json.Serialization.JsonPropertyName("input_text")]
+        public string? input_text { get; set; }
+        [System.Text.Json.Serialization.JsonPropertyName("page_type")]
+        public string? page_type { get; set; }
     }
 }
