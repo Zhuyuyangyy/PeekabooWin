@@ -1,5 +1,10 @@
 # Known Issues
 
+## V0.13 (Visual Robustness Enhancement)
+
+- **KI-18: ActionVerifier requires real desktop for integration testing**: The `VerifyAsync` method captures screenshots and runs OCR, which requires a real Windows desktop. Unit tests only cover the model classes. Integration testing with real desktop is planned for V0.14.
+- **KI-19: RecoveryPlanner does not yet integrate with AgentOrchestrator**: The `RecoveryPlanner` is a standalone component. Integration into the `AgentOrchestrator` execution loop (auto-retry on failure) is planned for V0.14.
+
 ## V0.12 (Stability Release)
 
 - **KI-17: InputService.Click/RightClick uses Thread.Sleep(50) for Win32 timing**: `SetCursorPos` → `Thread.Sleep(50)` → `SendInput` is a Win32 API timing requirement. The 50ms delay ensures the cursor position is updated before the click event is sent. This cannot be replaced with `Task.Delay` because `SendInput` is a synchronous Win32 call that must execute on the same thread immediately after position update. This is the only remaining `Thread.Sleep` in the codebase (2 occurrences).

@@ -19,12 +19,12 @@ namespace PeekabooWin.Core.Verification;
 /// </summary>
 public class BeforeAfterVerifier
 {
-    public VerificationResult Verify(
+    public BeforeAfterVerificationResult Verify(
         byte[] beforeImage,
         byte[] afterImage,
         VerificationContext context)
     {
-        var result = new VerificationResult();
+        var result = new BeforeAfterVerificationResult();
 
         // 1. VisualChange — 是否发生了视觉变化
         result.VisualChange = ComputeVisualChange(beforeImage, afterImage);
@@ -47,12 +47,12 @@ public class BeforeAfterVerifier
         // 决策
         if (result.VerificationScore >= 0.6)
         {
-            result.Outcome = VerificationOutcome.Success;
+            result.Outcome = BeforeAfterVerificationOutcome.Success;
             result.Message = $"验证通过 (score={result.VerificationScore:F2})";
         }
         else
         {
-            result.Outcome = VerificationOutcome.Failed;
+            result.Outcome = BeforeAfterVerificationOutcome.Failed;
             result.Message = $"验证失败 (score={result.VerificationScore:F2})，建议重试";
             result.RecoverySuggestion = GenerateRecoverySuggestion(result);
         }
@@ -160,7 +160,7 @@ public class BeforeAfterVerifier
         return 1.0;
     }
 
-    private string GenerateRecoverySuggestion(VerificationResult result)
+    private string GenerateRecoverySuggestion(BeforeAfterVerificationResult result)
     {
         if (result.VisualChange < 0.1)
             return "截图无变化，可能点击未生效，建议重新点击目标元素";
@@ -188,9 +188,9 @@ public class VerificationContext
 /// <summary>
 /// 验证结果
 /// </summary>
-public class VerificationResult
+public class BeforeAfterVerificationResult
 {
-    public VerificationOutcome Outcome { get; set; } = VerificationOutcome.Unknown;
+    public BeforeAfterVerificationOutcome Outcome { get; set; } = BeforeAfterVerificationOutcome.Unknown;
     public double VerificationScore { get; set; }
 
     public double VisualChange { get; set; }
@@ -202,7 +202,7 @@ public class VerificationResult
     public string? RecoverySuggestion { get; set; }
 }
 
-public enum VerificationOutcome
+public enum BeforeAfterVerificationOutcome
 {
     Unknown,
     Success,

@@ -142,7 +142,7 @@ public class VacpPlanner
             var verifyResult = _verifier.Verify(result.ScreenshotBefore, result.ScreenshotAfter, verifyContext);
             result.VerificationResult = verifyResult;
 
-            if (verifyResult.Outcome == VerificationOutcome.Success)
+            if (verifyResult.Outcome == BeforeAfterVerificationOutcome.Success)
             {
                 result.Success = true;
                 result.FinalMessage = "Task completed (score: " + verifyResult.VerificationScore.ToString("F2") + ")";
@@ -302,7 +302,7 @@ public class VacpResult
     public ActionCandidate? SelectedAction { get; set; }
     public RiskDecision? RiskDecision { get; set; }
     public ExecutionResult? ExecutionResult { get; set; }
-    public VerificationResult? VerificationResult { get; set; }
+    public BeforeAfterVerificationResult? VerificationResult { get; set; }
     public int RetryCount { get; set; }
     public string? RetrySuggestion { get; set; }
 }

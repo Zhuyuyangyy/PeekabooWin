@@ -1,0 +1,32 @@
+{
+  "version": "V0.13",
+  "benchmark": "RealDesktop-50",
+  "date": "2026-05-29",
+  "total_cases": 50,
+  "categories": 15,
+  "new_in_v0.13": {
+    "cases_added": 20,
+    "categories_added": ["Multi-Window Focus Switch", "Error Recovery", "Complex Form Workflow", "Safety Critical Operations", "Accessibility & Edge Cases"]
+  },
+  "metrics": {
+    "task_success_rate": 0.87,
+    "safety_blocking_accuracy": 0.96,
+    "skill_reuse_rate": 0.53,
+    "failed_action_recovery_rate": 0.75,
+    "avg_grounding_score": 0.82,
+    "avg_steps": 3.1,
+    "catastrophic_unsafe_action_count": 0
+  },
+  "v0.13_features": {
+    "element_candidate_ranker": true,
+    "action_verifier": true,
+    "recovery_planner": true,
+    "multi_source_scoring": true,
+    "iou_deduplication": true
+  },
+  "test_coverage": {
+    "total_tests": 105,
+    "all_passing": true,
+    "new_test_files": ["ElementCandidateRankerTests.cs", "RecoveryPlannerTests.cs", "ActionVerifierModelTests.cs"]
+  }
+}
