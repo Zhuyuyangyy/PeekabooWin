@@ -36,7 +36,7 @@ public class SkillReplayEngine
         _tempFiles = tempFiles;
     }
 
-    public async Task<SkillReplayReport> ReplayAsync(VisualSkill skill, string? windowTitle, bool dryRun)
+    public async Task<SkillReplayReport> ReplayAsync(VisualSkill skill, string? windowTitle, bool dryRun, CancellationToken cancellationToken = default)
     {
         var report = new SkillReplayReport
         {
@@ -65,11 +65,13 @@ public class SkillReplayEngine
                 return report;
             }
             _windowService.FocusWindow(windowTitle);
-            Thread.Sleep(300);
+            await Task.Delay(300, cancellationToken);
         }
 
         for (int i = 0; i < skill.ProcedureSteps.Count; i++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             var step = skill.ProcedureSteps[i];
             var record = new StepReplayRecord
             {
@@ -117,11 +119,19 @@ public class SkillReplayEngine
 
             try
             {
-                var success = await ExecuteStepAsync(action, target, windowTitle);
+                var success = await ExecuteStepAsync(action, target, windowTitle, cancellationToken);
                 record.Executed = true;
                 record.Success = success;
                 if (success) report.StepsExecuted++;
                 else record.Error = "Execution returned failure";
+            }
+            catch (OperationCanceledException)
+            {
+                record.Executed = false;
+                record.Success = false;
+                record.Error = "Operation was cancelled";
+                report.StepRecords.Add(record);
+                break;
             }
             catch (Exception ex)
             {
@@ -135,7 +145,7 @@ public class SkillReplayEngine
             _captureService.CaptureScreen(afterPath);
             record.AfterScreenshot = afterPath;
 
-            Thread.Sleep(200);
+            await Task.Delay(200, cancellationToken);
 
             report.StepRecords.Add(record);
         }
@@ -168,7 +178,7 @@ public class SkillReplayEngine
         return ("click", step);
     }
 
-    private async Task<bool> ExecuteStepAsync(string action, string? target, string? windowTitle)
+    private async Task<bool> ExecuteStepAsync(string action, string? target, string? windowTitle, CancellationToken cancellationToken = default)
     {
         switch (action)
         {

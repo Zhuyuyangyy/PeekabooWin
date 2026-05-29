@@ -86,7 +86,7 @@ public class AgentService
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var plan = ParseTask(request.Task, request.Context);
+            var plan = await ParseTaskAsync(request.Task, request.Context);
             var steps = new List<AgentStep>();
 
             for (int i = 0; i < Math.Min(plan.Count, request.MaxSteps); i++)
@@ -148,7 +148,7 @@ public class AgentService
         return response;
     }
 
-    private List<AgentStep> ParseTask(string task, string? context = null)
+    private async Task<List<AgentStep>> ParseTaskAsync(string task, string? context = null)
     {
         var lowerTask = task.ToLower().Trim();
 
@@ -156,7 +156,7 @@ public class AgentService
         if (steps.Count > 0)
             return steps;
 
-        return TryLLMParse(task, context);
+        return await TryLLMParseAsync(task, context);
     }
 
     private List<AgentStep> TryRuleBasedParse(string lowerTask, string originalTask)
@@ -392,7 +392,7 @@ public class AgentService
         return steps;
     }
 
-    private List<AgentStep> TryLLMParse(string task, string? context = null)
+    private async Task<List<AgentStep>> TryLLMParseAsync(string task, string? context = null)
     {
         var toolsJson = JsonSerializer.Serialize(AvailableTools, new JsonSerializerOptions { WriteIndented = false });
 
@@ -436,7 +436,7 @@ Output: [
 
         try
         {
-            var response = CallMiniMaxAsync(systemPrompt, userPrompt, apiKey).GetAwaiter().GetResult();
+            var response = await CallMiniMaxAsync(systemPrompt, userPrompt, apiKey);
             var steps = ParseStepsFromLLMResponse(response);
             if (steps.Count > 0)
                 return steps;

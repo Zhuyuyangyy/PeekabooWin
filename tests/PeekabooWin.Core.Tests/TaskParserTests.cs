@@ -10,9 +10,9 @@ public class TaskParserTests
     private readonly TaskParser _parser = new(new HttpClient());
 
     [Fact]
-    public void ParseTask_ClickWithCoordinates_ReturnsClickAction()
+    public async Task ParseTask_ClickWithCoordinates_ReturnsClickAction()
     {
-        var steps = _parser.ParseTask("click 100 200");
+        var steps = await _parser.ParseTaskAsync("click 100 200");
 
         Assert.Single(steps);
         Assert.Equal("click", steps[0].Action);
@@ -21,9 +21,9 @@ public class TaskParserTests
     }
 
     [Fact]
-    public void ParseTask_TypeText_ReturnsTypeAction()
+    public async Task ParseTask_TypeText_ReturnsTypeAction()
     {
-        var steps = _parser.ParseTask("type hello");
+        var steps = await _parser.ParseTaskAsync("type hello");
 
         Assert.Single(steps);
         Assert.Equal("type", steps[0].Action);
@@ -31,9 +31,9 @@ public class TaskParserTests
     }
 
     [Fact]
-    public void ParseTask_PressKey_ReturnsPressAction()
+    public async Task ParseTask_PressKey_ReturnsPressAction()
     {
-        var steps = _parser.ParseTask("press enter");
+        var steps = await _parser.ParseTaskAsync("press enter");
 
         Assert.Single(steps);
         Assert.Equal("press", steps[0].Action);
@@ -41,9 +41,9 @@ public class TaskParserTests
     }
 
     [Fact]
-    public void ParseTask_PressHotkey_ReturnsHotkeyAction()
+    public async Task ParseTask_PressHotkey_ReturnsHotkeyAction()
     {
-        var steps = _parser.ParseTask("press ctrl+a");
+        var steps = await _parser.ParseTaskAsync("press ctrl+a");
 
         Assert.Single(steps);
         Assert.Equal("hotkey", steps[0].Action);
@@ -51,9 +51,9 @@ public class TaskParserTests
     }
 
     [Fact]
-    public void ParseTask_OpenApp_ReturnsFocusWindowAction()
+    public async Task ParseTask_OpenApp_ReturnsFocusWindowAction()
     {
-        var steps = _parser.ParseTask("open notepad");
+        var steps = await _parser.ParseTaskAsync("open notepad");
 
         Assert.Single(steps);
         Assert.Equal("focus-window", steps[0].Action);
@@ -61,27 +61,28 @@ public class TaskParserTests
     }
 
     [Fact]
-    public void ParseTask_Screenshot_ReturnsScreenshotAction()
+    public async Task ParseTask_Screenshot_ReturnsScreenshotAction()
     {
-        var steps = _parser.ParseTask("screenshot");
+        var steps = await _parser.ParseTaskAsync("screenshot");
 
         Assert.Single(steps);
         Assert.Equal("screenshot", steps[0].Action);
     }
 
     [Fact]
-    public void ParseTask_UnknownTask_NoApiKey_ReturnsErrorAction()
+    public async Task ParseTask_UnknownTask_NoApiKey_ReturnsErrorAction()
     {
         var originalKey = Environment.GetEnvironmentVariable("MINIMAX_API_KEY");
         Environment.SetEnvironmentVariable("MINIMAX_API_KEY", null);
 
         try
         {
-            var steps = _parser.ParseTask("do something completely unknown xyz");
+            var steps = await _parser.ParseTaskAsync("do something completely unknown xyz");
 
             Assert.Single(steps);
             Assert.Equal("error", steps[0].Action);
             Assert.NotEmpty(_parser.LastFallbackReason);
+            Assert.Equal("MISSING_API_KEY", _parser.LastLlmErrorCode);
         }
         finally
         {
@@ -90,13 +91,14 @@ public class TaskParserTests
     }
 
     [Fact]
-    public void GetLastParseMetadata_AfterRuleBasedParse_ReturnsCorrectMode()
+    public async Task GetLastParseMetadata_AfterRuleBasedParse_ReturnsCorrectMode()
     {
-        _parser.ParseTask("click 100 200");
+        await _parser.ParseTaskAsync("click 100 200");
 
         var meta = _parser.GetLastParseMetadata();
 
         Assert.Equal("rule_based", meta.ParserMode);
         Assert.True(meta.LlmEnabled);
+        Assert.Empty(meta.LlmErrorCode);
     }
 }

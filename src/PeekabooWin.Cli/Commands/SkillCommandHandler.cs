@@ -53,7 +53,7 @@ public class SkillCommandHandler : ICommandHandler
             "skill-replay" => await HandleSkillReplay(args),
             "skill-seed" => HandleSkillSeed(args),
             "skill-search" => HandleSkillSearch(args),
-            "skill-search-context" => HandleSkillSearchContext(args),
+            "skill-search-context" => await HandleSkillSearchContextAsync(args),
             "skill-use-preview" => HandleSkillUsePreview(args),
             "skill-execute-guided" => HandleSkillExecuteGuided(args),
             _ => 1
@@ -206,7 +206,7 @@ public class SkillCommandHandler : ICommandHandler
         return 0;
     }
 
-    private int HandleSkillSearchContext(string[] args)
+    private async Task<int> HandleSkillSearchContextAsync(string[] args)
     {
         var task = CliHelpers.GetFlag(args, "--task", "-t") ?? CliHelpers.GetFlag(args, "--text", "-x");
         var windowTitle = CliHelpers.GetFlag(args, "--window", "-w");
@@ -217,8 +217,8 @@ public class SkillCommandHandler : ICommandHandler
             return 1;
         }
 
-        var sig = _skillIntegration.BuildWindowSignature(windowTitle);
-        var searchResults = _skillIntegration.SearchWithContext(task, windowTitle);
+        var sig = await _skillIntegration.BuildWindowSignatureAsync(windowTitle);
+        var searchResults = await _skillIntegration.SearchWithContextAsync(task, windowTitle);
         var visibleHints = sig.VisibleTexts;
         var anchors = sig.AnchorCandidates;
         var profile = sig.Profile;

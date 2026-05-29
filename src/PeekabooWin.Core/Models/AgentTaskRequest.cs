@@ -2,9 +2,6 @@ using System.Text.Json.Serialization;
 
 namespace PeekabooWin.Core.Models;
 
-/// <summary>
-/// Agent 自然语言任务请求
-/// </summary>
 public class AgentTaskRequest
 {
     [JsonPropertyName("task")]
@@ -18,11 +15,11 @@ public class AgentTaskRequest
 
     [JsonPropertyName("dry_run")]
     public bool DryRun { get; set; } = false;
+
+    [JsonPropertyName("timeout_ms")]
+    public int TimeoutMs { get; set; } = 30000;
 }
 
-/// <summary>
-/// Agent 执行的单步动作
-/// </summary>
 public class AgentStep
 {
     [JsonPropertyName("step")]
@@ -47,9 +44,6 @@ public class AgentStep
     public string? Error { get; set; }
 }
 
-/// <summary>
-/// Agent 任务执行结果
-/// </summary>
 public class AgentTaskResponse
 {
     [JsonPropertyName("task")]
@@ -69,11 +63,29 @@ public class AgentTaskResponse
 
     [JsonPropertyName("error")]
     public string? Error { get; set; }
+
+    [JsonPropertyName("timeout_ms")]
+    public int TimeoutMs { get; set; }
+
+    [JsonPropertyName("cancelled")]
+    public bool Cancelled { get; set; }
+
+    [JsonPropertyName("timeout_triggered")]
+    public bool TimeoutTriggered { get; set; }
+
+    [JsonPropertyName("parser_mode")]
+    public string ParserMode { get; set; } = "none";
+
+    [JsonPropertyName("llm_enabled")]
+    public bool LlmEnabled { get; set; } = true;
+
+    [JsonPropertyName("fallback_reason")]
+    public string FallbackReason { get; set; } = "";
+
+    [JsonPropertyName("llm_error_code")]
+    public string LlmErrorCode { get; set; } = "";
 }
 
-/// <summary>
-/// 可用工具的描述（给 LLM 看的工具清单）
-/// </summary>
 public class ToolDescriptor
 {
     [JsonPropertyName("name")]

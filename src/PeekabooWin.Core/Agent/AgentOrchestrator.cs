@@ -35,16 +35,33 @@ public class AgentOrchestrator
             Task = request.Task
         };
 
+        using var timeoutCts = request.TimeoutMs > 0
+            ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)
+            : null;
+
+        if (timeoutCts != null)
+        {
+            timeoutCts.CancelAfter(request.TimeoutMs);
+        }
+
+        var effectiveToken = timeoutCts?.Token ?? cancellationToken;
+
         try
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            effectiveToken.ThrowIfCancellationRequested();
 
-            var plan = _taskParser.ParseTask(request.Task, request.Context);
+            var plan = await _taskParser.ParseTaskAsync(request.Task, request.Context, effectiveToken);
+            var parseMeta = _taskParser.GetLastParseMetadata();
+            response.ParserMode = parseMeta.ParserMode;
+            response.LlmEnabled = parseMeta.LlmEnabled;
+            response.FallbackReason = parseMeta.FallbackReason;
+            response.LlmErrorCode = parseMeta.LlmErrorCode;
+
             var steps = new List<AgentStep>();
 
             for (int i = 0; i < Math.Min(plan.Count, request.MaxSteps); i++)
             {
-                cancellationToken.ThrowIfCancellationRequested();
+                effectiveToken.ThrowIfCancellationRequested();
 
                 var step = plan[i];
                 var stepResult = new AgentStep
@@ -83,7 +100,7 @@ public class AgentOrchestrator
                     }
                     else
                     {
-                        var (success, result) = await _actionExecutor.ExecuteActionAsync(step.Action, step.Args ?? new(), cancellationToken);
+                        var (success, result) = await _actionExecutor.ExecuteActionAsync(step.Action, step.Args ?? new(), effectiveToken);
                         stepResult.Success = success;
                         stepResult.Result = result;
                     }
@@ -91,12 +108,22 @@ public class AgentOrchestrator
                     steps.Add(stepResult);
                     if (!stepResult.Success && !request.DryRun) break;
                 }
-                catch (OperationCanceledException)
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                 {
                     stepResult.Success = false;
                     stepResult.Error = "Operation was cancelled";
                     steps.Add(stepResult);
+                    response.Cancelled = true;
                     PekaLogger.Warn("AgentOrchestrator", $"Step {i + 1} cancelled");
+                    break;
+                }
+                catch (OperationCanceledException) when (timeoutCts?.IsCancellationRequested == true)
+                {
+                    stepResult.Success = false;
+                    stepResult.Error = $"Timeout after {request.TimeoutMs}ms";
+                    steps.Add(stepResult);
+                    response.TimeoutTriggered = true;
+                    PekaLogger.Warn("AgentOrchestrator", $"Step {i + 1} timed out after {request.TimeoutMs}ms");
                     break;
                 }
                 catch (Exception ex)
@@ -113,11 +140,19 @@ public class AgentOrchestrator
             response.Success = steps.All(s => s.Success);
             response.FinalResult = BuildFinalResult(steps);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             response.Success = false;
             response.Error = "Task was cancelled";
+            response.Cancelled = true;
             PekaLogger.Warn("AgentOrchestrator", "RunAsync cancelled");
+        }
+        catch (OperationCanceledException) when (timeoutCts?.IsCancellationRequested == true)
+        {
+            response.Success = false;
+            response.Error = $"Task timed out after {request.TimeoutMs}ms";
+            response.TimeoutTriggered = true;
+            PekaLogger.Warn("AgentOrchestrator", $"RunAsync timed out after {request.TimeoutMs}ms");
         }
         catch (Exception ex)
         {

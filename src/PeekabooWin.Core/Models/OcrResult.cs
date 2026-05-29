@@ -2,9 +2,6 @@ using System.Text.Json.Serialization;
 
 namespace PeekabooWin.Core.Models;
 
-/// <summary>
-/// OCR 识别结果
-/// </summary>
 public class OcrResult
 {
     [JsonPropertyName("text")]
@@ -24,11 +21,14 @@ public class OcrResult
 
     [JsonPropertyName("error")]
     public string? Error { get; set; }
+
+    [JsonPropertyName("error_code")]
+    public string? ErrorCode { get; set; }
+
+    [JsonPropertyName("success")]
+    public bool Success => string.IsNullOrEmpty(Error);
 }
 
-/// <summary>
-/// 单个识别出来的词
-/// </summary>
 public class OcrWord
 {
     [JsonPropertyName("text")]
@@ -41,9 +41,6 @@ public class OcrWord
     public double Confidence { get; set; }
 }
 
-/// <summary>
-/// OCR 矩形区域（像素坐标）
-/// </summary>
 public class OcrRect
 {
     [JsonPropertyName("x")]

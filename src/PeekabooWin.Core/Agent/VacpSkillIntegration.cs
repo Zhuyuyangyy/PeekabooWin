@@ -22,11 +22,6 @@ public class VacpSkillIntegration
     { _store = store ?? new VisualSkillStore(); _extractor = new VisualSkillExtractor(); _retriever = new VisualSkillRetriever(_store); _skillRetriever = new SkillRetriever(_store); _policy = new SkillExecutionPolicy(); }
     public List<SkillSearchResult> Search(string taskText, string? appPattern = null, string? visibleText = null, string? windowTitle = null) => _skillRetriever.Search(taskText, appPattern, visibleText, windowTitle);
     public SkillExecutionPolicy Policy => _policy;
-    public WindowSignature BuildWindowSignature(string? windowTitle = null)
-    {
-        return BuildWindowSignatureAsync(windowTitle).GetAwaiter().GetResult();
-    }
-
     public async Task<WindowSignature> BuildWindowSignatureAsync(string? windowTitle = null)
     {
         var sig = new WindowSignature { CapturedAt = DateTime.UtcNow };
@@ -40,9 +35,9 @@ public class VacpSkillIntegration
         try { captureService.CaptureWindow(targetWin?.Title ?? "", tempPath); if (System.IO.File.Exists(tempPath)) { var ocrResult = await ocrService.RecognizeImageAsync(tempPath); sig.VisibleTexts = ocrResult.Words.Select(w => w.Text).Distinct().ToList(); } } finally { try { System.IO.File.Delete(tempPath); } catch (Exception ex) { PekaLogger.Warn("VacpSkillIntegration", "Failed to delete temp file: " + tempPath, ex); } }
         return sig;
     }
-    public List<SkillSearchResult> SearchWithContext(string taskText, string? windowTitle = null)
+    public async Task<List<SkillSearchResult>> SearchWithContextAsync(string taskText, string? windowTitle = null)
     {
-        var sig = BuildWindowSignature(windowTitle);
+        var sig = await BuildWindowSignatureAsync(windowTitle);
         var results = _skillRetriever.Search(taskText, sig.ProcessName, null, sig.WindowTitle);
         var validator = new SkillScopeValidator();
         return results.Where(r => { if (r.Skill.Scope == null) return true; var app = AppProfile.FromWindowSignature(sig); var scopeResult = validator.Validate(r.Skill, app); if (!scopeResult.IsValid) { r.Reason = "[BLOCKED] " + scopeResult.Reason; return false; } return true; }).ToList();

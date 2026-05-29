@@ -17,6 +17,7 @@ public class TaskParser
     public string LastFallbackReason { get; private set; } = "";
     public bool LastLlmEnabled { get; private set; } = true;
     public string LastParserMode { get; private set; } = "none";
+    public string LastLlmErrorCode { get; private set; } = "";
 
     private static readonly List<ToolDescriptor> AvailableTools = new()
     {
@@ -42,7 +43,7 @@ public class TaskParser
         _httpClient = httpClient;
     }
 
-    public List<AgentStep> ParseTask(string task, string? context = null)
+    public async Task<List<AgentStep>> ParseTaskAsync(string task, string? context = null, CancellationToken cancellationToken = default)
     {
         var lowerTask = task.ToLower().Trim();
 
@@ -52,10 +53,11 @@ public class TaskParser
             LastParserMode = "rule_based";
             LastFallbackReason = "";
             LastLlmEnabled = true;
+            LastLlmErrorCode = "";
             return steps;
         }
 
-        return TryLLMParse(task, context);
+        return await TryLLMParseAsync(task, context, cancellationToken);
     }
 
     public ParseTaskMetadata GetLastParseMetadata()
@@ -64,7 +66,8 @@ public class TaskParser
         {
             FallbackReason = LastFallbackReason,
             LlmEnabled = LastLlmEnabled,
-            ParserMode = LastParserMode
+            ParserMode = LastParserMode,
+            LlmErrorCode = LastLlmErrorCode
         };
     }
 
@@ -301,7 +304,7 @@ public class TaskParser
         return steps;
     }
 
-    private List<AgentStep> TryLLMParse(string task, string? context = null)
+    private async Task<List<AgentStep>> TryLLMParseAsync(string task, string? context, CancellationToken cancellationToken)
     {
         var toolsJson = JsonSerializer.Serialize(AvailableTools, new JsonSerializerOptions { WriteIndented = false });
 
@@ -334,6 +337,7 @@ Output: [
             LastParserMode = "regex_fallback";
             LastFallbackReason = "MINIMAX_API_KEY not set";
             LastLlmEnabled = false;
+            LastLlmErrorCode = "MISSING_API_KEY";
             PekaLogger.Warn("TaskParser", "LLM fallback: MINIMAX_API_KEY not set, using regex-only parsing");
 
             return new List<AgentStep>
@@ -349,26 +353,45 @@ Output: [
 
         try
         {
-            var response = CallMiniMaxAsync(systemPrompt, userPrompt, apiKey).GetAwaiter().GetResult();
+            var response = await CallMiniMaxAsync(systemPrompt, userPrompt, apiKey, cancellationToken);
             var steps = ParseStepsFromLLMResponse(response);
             if (steps.Count > 0)
             {
                 LastParserMode = "llm";
                 LastFallbackReason = "";
                 LastLlmEnabled = true;
+                LastLlmErrorCode = "";
                 return steps;
             }
 
             LastParserMode = "llm_failed";
             LastFallbackReason = "LLM returned unparseable response";
             LastLlmEnabled = true;
+            LastLlmErrorCode = "LLM_UNPARSEABLE_RESPONSE";
             PekaLogger.Warn("TaskParser", "LLM fallback: LLM response could not be parsed");
+        }
+        catch (OperationCanceledException)
+        {
+            LastParserMode = "llm_timeout";
+            LastFallbackReason = "LLM call was cancelled or timed out";
+            LastLlmEnabled = true;
+            LastLlmErrorCode = "LLM_TIMEOUT";
+            PekaLogger.Warn("TaskParser", "LLM fallback: LLM call cancelled/timed out");
+        }
+        catch (HttpRequestException ex)
+        {
+            LastParserMode = "llm_error";
+            LastFallbackReason = $"LLM HTTP error: {ex.Message}";
+            LastLlmEnabled = true;
+            LastLlmErrorCode = "LLM_HTTP_ERROR";
+            PekaLogger.Warn("TaskParser", $"LLM fallback: HTTP error - {ex.Message}");
         }
         catch (Exception ex)
         {
             LastParserMode = "llm_error";
             LastFallbackReason = $"LLM call failed: {ex.Message}";
             LastLlmEnabled = true;
+            LastLlmErrorCode = "LLM_UNKNOWN_ERROR";
             PekaLogger.Warn("TaskParser", $"LLM fallback: LLM call failed - {ex.Message}");
         }
 
@@ -396,7 +419,7 @@ Output: [
         }
     }
 
-    private async Task<string> CallMiniMaxAsync(string systemPrompt, string userPrompt, string apiKey)
+    private async Task<string> CallMiniMaxAsync(string systemPrompt, string userPrompt, string apiKey, CancellationToken cancellationToken = default)
     {
         var requestBody = new
         {
@@ -417,10 +440,10 @@ Output: [
         request.Headers.Add("Authorization", $"Bearer {apiKey}");
         request.Content = content;
 
-        var response = await _httpClient.SendAsync(request);
+        var response = await _httpClient.SendAsync(request, cancellationToken);
         response.EnsureSuccessStatusCode();
 
-        var responseJson = await response.Content.ReadAsStringAsync();
+        var responseJson = await response.Content.ReadAsStringAsync(cancellationToken);
         var responseObj = JsonSerializer.Deserialize<JsonElement>(responseJson);
 
         return responseObj.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString() ?? "[]";
@@ -443,4 +466,5 @@ public class ParseTaskMetadata
     public string FallbackReason { get; set; } = "";
     public bool LlmEnabled { get; set; }
     public string ParserMode { get; set; } = "none";
+    public string LlmErrorCode { get; set; } = "";
 }
