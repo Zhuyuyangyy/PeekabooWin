@@ -276,7 +276,7 @@ public class ApiServer
                     Context = req.context
                 };
 
-                var result = agentService.ExecuteTask(agentReq);
+                var result = await agentService.ExecuteTaskAsync(agentReq);
                 await RespondJson(response, 200, result);
                 return;
             }

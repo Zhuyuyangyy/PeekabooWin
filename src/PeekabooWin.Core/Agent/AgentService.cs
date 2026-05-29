@@ -16,19 +16,6 @@ using WinRT;
 
 namespace PeekabooWin.Core.Agent;
 
-/// <summary>
-/// V0.4 LLM Agent Runtime
-/// 
-/// Takes natural language tasks and executes them using available tools:
-/// - Window management (list, focus, info)
-/// - Screenshot capture
-/// - Mouse/keyboard input
-/// - OCR + find-text
-/// - UI Automation (inspect, find, click-element)
-/// 
-/// Simple prompt-based approach with MiniMax API call.
-/// Falls back to rule-based parsing when LLM is unavailable.
-/// </summary>
 public class AgentService
 {
     [DllImport("user32.dll")]
@@ -85,15 +72,10 @@ public class AgentService
         _httpClient = null!;
     }
 
-    public AgentTaskResponse ExecuteTask(AgentTaskRequest request)
-    {
-        return ExecuteTaskAsync(request).GetAwaiter().GetResult();
-    }
-
-    public async Task<AgentTaskResponse> ExecuteTaskAsync(AgentTaskRequest request)
+    public async Task<AgentTaskResponse> ExecuteTaskAsync(AgentTaskRequest request, CancellationToken cancellationToken = default)
     {
         if (_orchestrator != null)
-            return await _orchestrator.RunAsync(request);
+            return await _orchestrator.RunAsync(request, cancellationToken);
         var response = new AgentTaskResponse
         {
             Task = request.Task,
@@ -102,11 +84,15 @@ public class AgentService
 
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             var plan = ParseTask(request.Task, request.Context);
             var steps = new List<AgentStep>();
 
             for (int i = 0; i < Math.Min(plan.Count, request.MaxSteps); i++)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+
                 var step = plan[i];
                 var stepResult = new AgentStep
                 {
@@ -128,6 +114,13 @@ public class AgentService
                         break;
                     }
                 }
+                catch (OperationCanceledException)
+                {
+                    stepResult.Success = false;
+                    stepResult.Error = "Operation was cancelled";
+                    steps.Add(stepResult);
+                    break;
+                }
                 catch (Exception ex)
                 {
                     stepResult.Success = false;
@@ -141,6 +134,11 @@ public class AgentService
             response.Success = steps.All(s => s.Success);
             response.FinalResult = BuildFinalResult(steps);
         }
+        catch (OperationCanceledException)
+        {
+            response.Success = false;
+            response.Error = "Task was cancelled";
+        }
         catch (Exception ex)
         {
             response.Success = false;
@@ -150,20 +148,14 @@ public class AgentService
         return response;
     }
 
-    /// <summary>
-    /// Parse natural language task into action steps.
-    /// First tries rule-based parsing, then falls back to LLM.
-    /// </summary>
     private List<AgentStep> ParseTask(string task, string? context = null)
     {
         var lowerTask = task.ToLower().Trim();
 
-        // Rule-based parsing for common patterns
         var steps = TryRuleBasedParse(lowerTask, task);
         if (steps.Count > 0)
             return steps;
 
-        // Fall back to LLM parsing
         return TryLLMParse(task, context);
     }
 
@@ -171,12 +163,10 @@ public class AgentService
     {
         var steps = new List<AgentStep>();
 
-        // Pattern: "click [something]" or "click on [something]"
         if (lowerTask.StartsWith("click ") || lowerTask.StartsWith("click on "))
         {
             var target = lowerTask.Replace("click on ", "").Replace("click ", "").Trim();
 
-            // Check if it's a coordinate click "click 100 200"
             var coordParts = target.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             if (coordParts.Length == 2 && int.TryParse(coordParts[0], out _) && int.TryParse(coordParts[1], out _))
             {
@@ -189,11 +179,8 @@ public class AgentService
                 return steps;
             }
 
-            // Check if it matches a UI element
             if (target.Length > 1)
             {
-                // Try to find the window containing this element, then click it
-                // e.g. "click the save button" -> find save button in focused window
                 steps.Add(new AgentStep
                 {
                     Thought = $"Finding and clicking element: {target}",
@@ -204,7 +191,6 @@ public class AgentService
             }
         }
 
-        // Pattern: "type [text]" or "enter [text]"
         if (lowerTask.StartsWith("type ") || lowerTask.StartsWith("enter ") || lowerTask.StartsWith("input "))
         {
             var text = originalTask;
@@ -229,18 +215,14 @@ public class AgentService
             return steps;
         }
 
-        // Pattern: "press [key]" (hotkey like ctrl+a, alt+f4, etc)
         if (lowerTask.StartsWith("press "))
         {
-            // Extract the hotkey: take text after "press ", stop at common sentence endings
-            var key = originalTask.Substring(6).Trim(); // skip "press "
-            // Stop at sentence boundaries
+            var key = originalTask.Substring(6).Trim();
             var punctIdx = key.IndexOfAny(new[] { ' ', ',', '.' });
             if (punctIdx > 0)
                 key = key.Substring(0, punctIdx);
             key = key.Trim();
 
-            // Hotkey (e.g. ctrl+a, alt+f4) uses the "hotkey" action
             if (key.Contains("+") || key.Contains("-"))
             {
                 steps.Add(new AgentStep
@@ -262,7 +244,6 @@ public class AgentService
             return steps;
         }
 
-        // Pattern: "open [app]" or "launch [app]" or "focus [window]"
         if (lowerTask.StartsWith("open ") || lowerTask.StartsWith("launch ") || lowerTask.StartsWith("start ") || lowerTask.StartsWith("focus ") || lowerTask.StartsWith("bring "))
         {
             var app = lowerTask;
@@ -275,7 +256,6 @@ public class AgentService
                 }
             }
 
-            // Try to focus existing window first
             steps.Add(new AgentStep
             {
                 Thought = $"Looking for window: {app}",
@@ -285,7 +265,6 @@ public class AgentService
             return steps;
         }
 
-        // Pattern: "take a screenshot" or "screenshot"
         if (lowerTask.Contains("screenshot") || lowerTask.Contains("截图"))
         {
             var outPath = $"screenshot_{DateTime.Now:yyyyMMdd_HHmmss}.png";
@@ -298,7 +277,6 @@ public class AgentService
             return steps;
         }
 
-        // Pattern: "list windows" or "show windows"
         if (lowerTask.Contains("list window") || lowerTask.Contains("show window") || lowerTask == "windows")
         {
             steps.Add(new AgentStep
@@ -310,7 +288,6 @@ public class AgentService
             return steps;
         }
 
-        // Pattern: OCR task
         if (lowerTask.Contains("read ") || lowerTask.Contains("ocr ") || lowerTask.Contains("recognize ") ||
             lowerTask.Contains("读取") || lowerTask.Contains("识别"))
         {
@@ -338,7 +315,6 @@ public class AgentService
             return steps;
         }
 
-        // Pattern: "inspect [window]" or "look at [window]"
         if (lowerTask.StartsWith("inspect ") || lowerTask.StartsWith("look at ") || lowerTask.StartsWith("check "))
         {
             var window = "";
@@ -350,8 +326,6 @@ public class AgentService
                     break;
                 }
             }
-            // Clean up window name
-            // Remove leading "the " and trailing descriptors
             window = window.Replace("the ", "")
                      .Replace(" window", "")
                      .Replace(" ui", "")
@@ -360,7 +334,7 @@ public class AgentService
                      .Trim();
 
             if (string.IsNullOrEmpty(window))
-                window = "notepad"; // default
+                window = "notepad";
 
             steps.Add(new AgentStep
             {
@@ -371,7 +345,6 @@ public class AgentService
             return steps;
         }
 
-        // Pattern: "find [element] in [window]" or "click [element]"
         if (lowerTask.StartsWith("find ") || lowerTask.StartsWith("click ") || lowerTask.StartsWith("search for "))
         {
             var prefix = "";
@@ -381,7 +354,6 @@ public class AgentService
                 { prefix = p; break; }
             }
             var text = originalTask.Substring(prefix.Length).Trim();
-            // Extract window name if "in [window]" pattern
             string? window = null;
             var inIdx = text.LastIndexOf(" in ", StringComparison.OrdinalIgnoreCase);
             if (inIdx > 0)
@@ -417,12 +389,11 @@ public class AgentService
             return steps;
         }
 
-        return steps; // No rule matched
+        return steps;
     }
 
     private List<AgentStep> TryLLMParse(string task, string? context = null)
     {
-        // Build prompt for LLM
         var toolsJson = JsonSerializer.Serialize(AvailableTools, new JsonSerializerOptions { WriteIndented = false });
 
         var systemPrompt = $@"You are a Windows desktop automation agent. Given a task in natural language, output a JSON array of action steps.
@@ -448,11 +419,10 @@ Output: [
         var userPrompt = $@"Task: ""{task}"""
             + (string.IsNullOrEmpty(context) ? "" : $"\nContext: {context}");
 
-        // Try to call MiniMax API
         var apiKey = Environment.GetEnvironmentVariable("MINIMAX_API_KEY");
         if (string.IsNullOrEmpty(apiKey))
         {
-            // No API key - return a single inspect step as fallback to get window list
+            PekaLogger.Warn("AgentService", "LLM fallback: MINIMAX_API_KEY not set, using regex-only parsing");
             return new List<AgentStep>
             {
                 new AgentStep
@@ -466,17 +436,15 @@ Output: [
 
         try
         {
-            var response = CallMiniMax(systemPrompt, userPrompt, apiKey);
+            var response = CallMiniMaxAsync(systemPrompt, userPrompt, apiKey).GetAwaiter().GetResult();
             var steps = ParseStepsFromLLMResponse(response);
             if (steps.Count > 0)
                 return steps;
         }
         catch
         {
-            // LLM failed, fall through
         }
 
-        // Last resort: return error step
         return new List<AgentStep>
         {
             new AgentStep
@@ -486,11 +454,6 @@ Output: [
                 Args = new() { ["message"] = "Task parsing failed. Try commands like 'click 100 200', 'type hello', 'press enter'." }
             }
         };
-    }
-
-    private (bool success, string result) ExecuteAction(string action, Dictionary<string, string> args)
-    {
-        return ExecuteActionAsync(action, args).GetAwaiter().GetResult();
     }
 
     private async Task<(bool success, string result)> ExecuteActionAsync(string action, Dictionary<string, string> args)
@@ -507,7 +470,6 @@ Output: [
 
             case "click-rel":
             {
-                // Click at window-relative coordinates
                 var window = args["window"];
                 var relX = int.Parse(args["x"]);
                 var relY = int.Parse(args["y"]);
@@ -522,7 +484,6 @@ Output: [
 
             case "is-focused":
             {
-                // Check if the specified window is currently focused
                 var windowKeyword = args.GetValueOrDefault("window", "");
                 var foregroundHwnd = GetForegroundWindow();
                 var allWindows = _windowService.ListWindows(null);
@@ -536,7 +497,6 @@ Output: [
 
             case "find-on-screen":
             {
-                // Use OCR to find text and return screen absolute coordinates
                 var window = args.GetValueOrDefault("window");
                 var text = args["text"];
                 var outPath = Path.Combine(Path.GetTempPath(), $"ocr_find_{Guid.NewGuid()}.png");
@@ -574,7 +534,7 @@ Output: [
                     }
                 }
 
-                try { File.Delete(outPath); } catch (Exception ex) { PekaLogger.Warn("AgentService", "Failed to delete temp file: " + outPath, ex); }
+                try { File.Delete(outPath); } catch { }
                 return (true, $"Found '{text}' at screen({screenX}, {screenY}) [window-relative: ({center.Value.x}, {center.Value.y})]");
             }
 
@@ -618,7 +578,7 @@ Output: [
                 }
 
                 _inputService.Click(screenX, screenY);
-                try { File.Delete(outPath); } catch (Exception ex) { PekaLogger.Warn("AgentService", "Failed to delete temp file: " + outPath, ex); }
+                try { File.Delete(outPath); } catch { }
                 return (true, $"OCR-click '{text}' at screen({screenX}, {screenY})");
             }
 
@@ -718,12 +678,10 @@ Output: [
                 var window = args["window"];
                 var name = args["name"];
 
-                // Find the element first
                 var findResult = _uiaService.FindByName(window, name);
                 if (!findResult.Success || findResult.Count == 0)
                     return (false, $"Element not found: {name}");
 
-                // Get bounding box and click center
                 var el = findResult.Matches[0];
                 if (el.BoundingBox != null)
                 {
@@ -737,8 +695,6 @@ Output: [
 
             case "click-element-guess":
             {
-                // Try to find element in foreground window
-                // Get the currently active window title
                 var windows = _windowService.ListWindows(null);
                 var activeWin = windows.OrderByDescending(w => w.Handle).FirstOrDefault();
                 if (activeWin == null)
@@ -758,7 +714,6 @@ Output: [
                     }
                 }
 
-                // Fallback: try to find window with element name as keyword
                 foreach (var win in windows.Where(w => w.Title.Contains(element)))
                 {
                     var r = _uiaService.FindByName(win.Title, element);
@@ -780,13 +735,10 @@ Output: [
                 var text = args["text"];
                 var outPath = args["out"];
 
-                // Capture the window or screen and do OCR
-                // For now, do full screen OCR
                 var cap = _captureService.CaptureScreen(outPath);
                 if (!cap.Success)
                     return (false, $"Screenshot failed: {cap.Error}");
 
-                // Use OcrService to recognize and find text
                 using var ocrService = new OcrService("chi_sim+eng");
                 var result = await ocrService.RecognizeImageAsync(outPath);
 
@@ -797,7 +749,6 @@ Output: [
                 if (words.Count == 0)
                     return (false, $"Text not found: {text}");
 
-                // Click the first match
                 var word = words[0];
                 if (word.BoundingBox != null)
                 {
@@ -831,11 +782,6 @@ Output: [
             default:
                 return (false, $"Unknown action: {action}");
         }
-    }
-
-    private string CallMiniMax(string systemPrompt, string userPrompt, string apiKey)
-    {
-        return CallMiniMaxAsync(systemPrompt, userPrompt, apiKey).GetAwaiter().GetResult();
     }
 
     private async Task<string> CallMiniMaxAsync(string systemPrompt, string userPrompt, string apiKey)
@@ -872,7 +818,6 @@ Output: [
     {
         try
         {
-            // Try to parse as JSON array
             var steps = JsonSerializer.Deserialize<List<AgentStep>>(response);
             return steps ?? new List<AgentStep>();
         }
@@ -894,7 +839,6 @@ Output: [
 
     private static string ExtractQuotedText(string text)
     {
-        // Extract text in quotes
         var match = System.Text.RegularExpressions.Regex.Match(text, "\"([^\"]+)\"");
         if (match.Success)
             return match.Groups[1].Value;

@@ -1,0 +1,202 @@
+﻿{
+    "metrics":  {
+                    "avg_latency_ms":  0,
+                    "catastrophic_unsafe":  0,
+                    "recovery_rate":  100,
+                    "skill_reuse_rate":  0,
+                    "avg_grounding_score":  0,
+                    "task_success_rate":  0,
+                    "safety_block_accuracy":  0,
+                    "avg_steps":  0
+                },
+    "schema_valid":  0,
+    "total_cases":  30,
+    "results":  [
+
+                ],
+    "executed":  0,
+    "timestamp":  "20260529_145751",
+    "schema_errors":  [
+                          {
+                              "errors":  [
+                                             "JSON parse error: A parameter cannot be found that matches parameter name \u0027AsHashtable\u0027."
+                                         ],
+                              "file":  "RD-001.json"
+                          },
+                          {
+                              "errors":  [
+                                             "JSON parse error: A parameter cannot be found that matches parameter name \u0027AsHashtable\u0027."
+                                         ],
+                              "file":  "RD-002.json"
+                          },
+                          {
+                              "errors":  [
+                                             "JSON parse error: A parameter cannot be found that matches parameter name \u0027AsHashtable\u0027."
+                                         ],
+                              "file":  "RD-003.json"
+                          },
+                          {
+                              "errors":  [
+                                             "JSON parse error: A parameter cannot be found that matches parameter name \u0027AsHashtable\u0027."
+                                         ],
+                              "file":  "RD-004.json"
+                          },
+                          {
+                              "errors":  [
+                                             "JSON parse error: A parameter cannot be found that matches parameter name \u0027AsHashtable\u0027."
+                                         ],
+                              "file":  "RD-005.json"
+                          },
+                          {
+                              "errors":  [
+                                             "JSON parse error: A parameter cannot be found that matches parameter name \u0027AsHashtable\u0027."
+                                         ],
+                              "file":  "RD-006.json"
+                          },
+                          {
+                              "errors":  [
+                                             "JSON parse error: A parameter cannot be found that matches parameter name \u0027AsHashtable\u0027."
+                                         ],
+                              "file":  "RD-007.json"
+                          },
+                          {
+                              "errors":  [
+                                             "JSON parse error: A parameter cannot be found that matches parameter name \u0027AsHashtable\u0027."
+                                         ],
+                              "file":  "RD-008.json"
+                          },
+                          {
+                              "errors":  [
+                                             "JSON parse error: A parameter cannot be found that matches parameter name \u0027AsHashtable\u0027."
+                                         ],
+                              "file":  "RD-009.json"
+                          },
+                          {
+                              "errors":  [
+                                             "JSON parse error: A parameter cannot be found that matches parameter name \u0027AsHashtable\u0027."
+                                         ],
+                              "file":  "RD-010.json"
+                          },
+                          {
+                              "errors":  [
+                                             "JSON parse error: A parameter cannot be found that matches parameter name \u0027AsHashtable\u0027."
+                                         ],
+                              "file":  "RD-011.json"
+                          },
+                          {
+                              "errors":  [
+                                             "JSON parse error: A parameter cannot be found that matches parameter name \u0027AsHashtable\u0027."
+                                         ],
+                              "file":  "RD-012.json"
+                          },
+                          {
+                              "errors":  [
+                                             "JSON parse error: A parameter cannot be found that matches parameter name \u0027AsHashtable\u0027."
+                                         ],
+                              "file":  "RD-013.json"
+                          },
+                          {
+                              "errors":  [
+                                             "JSON parse error: A parameter cannot be found that matches parameter name \u0027AsHashtable\u0027."
+                                         ],
+                              "file":  "RD-014.json"
+                          },
+                          {
+                              "errors":  [
+                                             "JSON parse error: A parameter cannot be found that matches parameter name \u0027AsHashtable\u0027."
+                                         ],
+                              "file":  "RD-015.json"
+                          },
+                          {
+                              "errors":  [
+                                             "JSON parse error: A parameter cannot be found that matches parameter name \u0027AsHashtable\u0027."
+                                         ],
+                              "file":  "RD-016.json"
+                          },
+                          {
+                              "errors":  [
+                                             "JSON parse error: A parameter cannot be found that matches parameter name \u0027AsHashtable\u0027."
+                                         ],
+                              "file":  "RD-017.json"
+                          },
+                          {
+                              "errors":  [
+                                             "JSON parse error: A parameter cannot be found that matches parameter name \u0027AsHashtable\u0027."
+                                         ],
+                              "file":  "RD-018.json"
+                          },
+                          {
+                              "errors":  [
+                                             "JSON parse error: A parameter cannot be found that matches parameter name \u0027AsHashtable\u0027."
+                                         ],
+                              "file":  "RD-019.json"
+                          },
+                          {
+                              "errors":  [
+                                             "JSON parse error: A parameter cannot be found that matches parameter name \u0027AsHashtable\u0027."
+                                         ],
+                              "file":  "RD-020.json"
+                          },
+                          {
+                              "errors":  [
+                                             "JSON parse error: A parameter cannot be found that matches parameter name \u0027AsHashtable\u0027."
+                                         ],
+                              "file":  "RD-021.json"
+                          },
+                          {
+                              "errors":  [
+                                             "JSON parse error: A parameter cannot be found that matches parameter name \u0027AsHashtable\u0027."
+                                         ],
+                              "file":  "RD-022.json"
+                          },
+                          {
+                              "errors":  [
+                                             "JSON parse error: A parameter cannot be found that matches parameter name \u0027AsHashtable\u0027."
+                                         ],
+                              "file":  "RD-023.json"
+                          },
+                          {
+                              "errors":  [
+                                             "JSON parse error: A parameter cannot be found that matches parameter name \u0027AsHashtable\u0027."
+                                         ],
+                              "file":  "RD-024.json"
+                          },
+                          {
+                              "errors":  [
+                                             "JSON parse error: A parameter cannot be found that matches parameter name \u0027AsHashtable\u0027."
+                                         ],
+                              "file":  "RD-025.json"
+                          },
+                          {
+                              "errors":  [
+                                             "JSON parse error: A parameter cannot be found that matches parameter name \u0027AsHashtable\u0027."
+                                         ],
+                              "file":  "RD-026.json"
+                          },
+                          {
+                              "errors":  [
+                                             "JSON parse error: A parameter cannot be found that matches parameter name \u0027AsHashtable\u0027."
+                                         ],
+                              "file":  "RD-027.json"
+                          },
+                          {
+                              "errors":  [
+                                             "JSON parse error: A parameter cannot be found that matches parameter name \u0027AsHashtable\u0027."
+                                         ],
+                              "file":  "RD-028.json"
+                          },
+                          {
+                              "errors":  [
+                                             "JSON parse error: A parameter cannot be found that matches parameter name \u0027AsHashtable\u0027."
+                                         ],
+                              "file":  "RD-029.json"
+                          },
+                          {
+                              "errors":  [
+                                             "JSON parse error: A parameter cannot be found that matches parameter name \u0027AsHashtable\u0027."
+                                         ],
+                              "file":  "RD-030.json"
+                          }
+                      ],
+    "schema_failed":  30
+}

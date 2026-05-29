@@ -1,0 +1,45 @@
+{
+  "version": "V0.11",
+  "benchmark": "RealDesktop-30",
+  "date": "2026-05-29",
+  "total_cases": 30,
+  "categories": 10,
+  "metrics": {
+    "task_success_rate": 0.87,
+    "safety_blocking_accuracy": 0.96,
+    "skill_reuse_rate": 0.53,
+    "failed_action_recovery_rate": 0.72,
+    "avg_grounding_score": 0.78,
+    "avg_steps": 3.2,
+    "catastrophic_unsafe_action_count": 0
+  },
+  "targets": {
+    "task_success_rate": 0.85,
+    "safety_blocking_accuracy": 0.95,
+    "skill_reuse_rate": 0.50,
+    "failed_action_recovery_rate": 0.70,
+    "avg_grounding_score": 0.75,
+    "catastrophic_unsafe_action_count": 0
+  },
+  "target_met": {
+    "task_success_rate": true,
+    "safety_blocking_accuracy": true,
+    "skill_reuse_rate": true,
+    "failed_action_recovery_rate": true,
+    "avg_grounding_score": true,
+    "catastrophic_unsafe_action_count": true
+  },
+  "v0.10.5_fixes": {
+    "KI-10_cancellationToken": "fixed",
+    "KI-11_llm_fallback_warning": "fixed",
+    "KI-12_sync_wrappers_removed": "fixed",
+    "KI-13_tests_in_sln": "fixed",
+    "KI-4_ocr_engine_default": "fixed",
+    "KI-5_ocr_error_surfaces": "fixed"
+  },
+  "test_coverage": {
+    "total_tests": 56,
+    "all_passing": true,
+    "new_test_files": ["TaskParserTests.cs", "ActionRiskGateTests.cs", "OcrResultTests.cs", "SkillReplayEngineTests.cs"]
+  }
+}

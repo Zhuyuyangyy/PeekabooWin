@@ -1,30 +1,29 @@
 # Known Issues
 
-## V0.10 (Engineering Hardening)
+## V0.10.5 (Engineering Hardening Patch)
 
-- **KI-10: AgentOrchestrator.RunAsync does not yet propagate cancellation tokens**: The orchestrator entry point accepts a `CancellationToken` parameter but does not thread it through to child `AgentService` or `VacpPlanner` calls.
-- **KI-11: TaskParser LLM fallback requires MINIMAX_API_KEY, no graceful degradation message when key is missing**: When the key is absent, the parser falls back silently to regex-only parsing with no log or user-facing warning.
-- **KI-12: ActionExecutor still has sync wrappers for backward compatibility (4 remaining GetAwaiter().GetResult() calls)**: These can deadlock on UI-affiliated synchronization contexts and should be replaced with async-only APIs in a future breaking release.
-- **KI-13: Test project not included in PeekabooWin.sln — must run `dotnet test` against the csproj directly**: The test `.csproj` exists but is not added to the solution file, so `dotnet test` from the sln root skips it.
+- **KI-14: TaskParser.TryLLMParse still uses .GetAwaiter().GetResult() for synchronous LLM call**: The `CallMiniMaxAsync` call inside `TryLLMParse` is synchronous because `ParseTask` returns `List<AgentStep>` (not `Task<List<AgentStep>>`). Making `ParseTask` async would require changing the entire call chain. This is acceptable because the LLM call is CPU-bound (HTTP request) and the method is called from non-UI contexts. Tracked for V0.12 async parser refactor.
+- **KI-15: AgentService.TryLLMParse also uses .GetAwaiter().GetResult()**: Same reason as KI-14. The legacy `AgentService` path still has a synchronous LLM call. The `AgentOrchestrator` → `TaskParser` path has the same limitation. Will be resolved together in V0.12.
+- **KI-16: VacpSkillIntegration.BuildWindowSignature uses .GetAwaiter().GetResult()**: The synchronous wrapper exists for backward compatibility with `SearchWithContext`. The async version `BuildWindowSignatureAsync` is available and preferred.
+
+## V0.10 (Engineering Hardening) — Fixed in V0.10.5
+
+- **~~KI-10: AgentOrchestrator.RunAsync does not yet propagate cancellation tokens~~**: Fixed in V0.10.5 — `RunAsync` now accepts `CancellationToken`, checks it at each step, and passes it to `ActionExecutor.ExecuteActionAsync`.
+- **~~KI-11: TaskParser LLM fallback requires MINIMAX_API_KEY, no graceful degradation message when key is missing~~**: Fixed in V0.10.5 — `TaskParser` now logs explicit warnings via `PekaLogger`, exposes `LastFallbackReason`, `LastLlmEnabled`, `LastParserMode` properties, and provides `GetLastParseMetadata()` for structured access.
+- **~~KI-12: ActionExecutor still has sync wrappers for backward compatibility (4 remaining GetAwaiter().GetResult() calls)~~**: Fixed in V0.10.5 — `ExecuteAction` sync wrapper removed from `ActionExecutor`. `AgentService.ExecuteTask` sync wrapper removed. Remaining 3 `GetAwaiter().GetResult()` calls are in LLM/skill paths where async refactor requires API break (see KI-14, KI-15, KI-16).
+- **~~KI-13: Test project not included in PeekabooWin.sln~~**: Fixed in V0.10.5 — `PeekabooWin.Core.Tests.csproj` added to solution file.
+
+## V0.9.4 (Baseline Validation) — Fixed in V0.10.5
+
+- **~~KI-4: `ocr` command returns 0 words, error not surfaced~~**: Fixed in V0.10 — `HandleOcr` now uses shared `OcrService` via DI. Fixed in V0.10.5 — `OcrResult.Engine` default changed from misleading `"Tesseract"` to `""`.
+- **~~KI-5: `OcrResult.Engine` default is "Tesseract"~~**: Fixed in V0.10.5 — Default changed to `""`. The actual engine is always set to `"Windows.Media.Ocr"` by `OcrService.RecognizeSoftwareBitmapAsync`. If Engine is empty, it means OCR was never successfully executed.
 
 ## V0.9.4 (Baseline Validation)
 
-- **KI-4: `ocr` command returns 0 words, error not surfaced**: `HandleOcr` creates a new `OcrService(lang)` and the output JSON does not include `ocrResult.Error`. When OCR fails internally, the error is silently swallowed. Meanwhile `find-on-screen` (which uses the shared OcrService) works correctly.
-- **KI-5: `OcrResult.Engine` default is "Tesseract"**: `OcrResult.cs` has `Engine = "Tesseract"` as default, but the actual engine is `Windows.Media.Ocr`. When OCR fails before setting Engine, the misleading default leaks through.
-- **~~KI-6: `HandleOcr` creates its own OcrService~~**: Fixed in V0.10 — `HandleOcr` now uses shared `OcrService` via DI in `OcrCommandHandler`.
-- **~~KI-7: Skill Replay is a no-op shell~~**: Fixed in V0.10 — `SkillReplayEngine` now performs real execution with risk gate.
-- **~~KI-8: VACP and AgentService are two independent execution paths~~**: Fixed in V0.10 — `AgentOrchestrator` unifies VACP + AgentService into a single pipeline.
-- **KI-9: Test coverage — only 3 test files**: Agent, VACP, OCR, Input, Capture, Window have zero unit tests.
+- **KI-9: Test coverage — only 3 test files**: Agent, VACP, OCR, Input, Capture, Window have zero unit tests. Expanding in V0.11.
 
 ## V0.9
 - **WindowSignature.SimilarityTo() score**: When WindowType+InputMode+RiskDomain are identical but ProcessFamily differs, the score is ~0.1 (not 1.0). The weighted formula (0.4+0.3+0.2)/9 = 0.1 for same family is the design intent. Full family match adds +0.1.
 
-## V0.7
-- **~~2 compiler warnings: CS8602~~**: Fixed in V0.9.4 — ApiServer.cs null-coalescing fallback added; AppProfile.IsCompatibleWith parameter made nullable.
-
-## V0.8
-- **~~1 compiler warning: CS8602 in ApiServer.cs~~**: Fixed in V0.9.4.
-
 ## All Versions
-- Tesseract tessdata (chi_sim+eng) must be present in tessdata/ for OCR to function — however, current code uses Windows.Media.Ocr, tessdata/ folder is vestigial
 - UIA may not work on some apps (games, Electron apps) — OCR fallback should be used

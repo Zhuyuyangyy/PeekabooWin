@@ -2,6 +2,7 @@ using System.Linq;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
+using PeekabooWin.Core.Infrastructure;
 using PeekabooWin.Core.Models;
 
 namespace PeekabooWin.Core.Agent;
@@ -12,6 +13,10 @@ public class TaskParser
 
     private const string MINIMAX_API = "https://api.minimax.chat/v1/chat/completions";
     private const string MINIMAX_MODEL = "MiniMax-M2.7";
+
+    public string LastFallbackReason { get; private set; } = "";
+    public bool LastLlmEnabled { get; private set; } = true;
+    public string LastParserMode { get; private set; } = "none";
 
     private static readonly List<ToolDescriptor> AvailableTools = new()
     {
@@ -43,9 +48,24 @@ public class TaskParser
 
         var steps = TryRuleBasedParse(lowerTask, task);
         if (steps.Count > 0)
+        {
+            LastParserMode = "rule_based";
+            LastFallbackReason = "";
+            LastLlmEnabled = true;
             return steps;
+        }
 
         return TryLLMParse(task, context);
+    }
+
+    public ParseTaskMetadata GetLastParseMetadata()
+    {
+        return new ParseTaskMetadata
+        {
+            FallbackReason = LastFallbackReason,
+            LlmEnabled = LastLlmEnabled,
+            ParserMode = LastParserMode
+        };
     }
 
     private List<AgentStep> TryRuleBasedParse(string lowerTask, string originalTask)
@@ -311,6 +331,11 @@ Output: [
         var apiKey = Environment.GetEnvironmentVariable("MINIMAX_API_KEY");
         if (string.IsNullOrEmpty(apiKey))
         {
+            LastParserMode = "regex_fallback";
+            LastFallbackReason = "MINIMAX_API_KEY not set";
+            LastLlmEnabled = false;
+            PekaLogger.Warn("TaskParser", "LLM fallback: MINIMAX_API_KEY not set, using regex-only parsing");
+
             return new List<AgentStep>
             {
                 new AgentStep
@@ -327,10 +352,24 @@ Output: [
             var response = CallMiniMaxAsync(systemPrompt, userPrompt, apiKey).GetAwaiter().GetResult();
             var steps = ParseStepsFromLLMResponse(response);
             if (steps.Count > 0)
+            {
+                LastParserMode = "llm";
+                LastFallbackReason = "";
+                LastLlmEnabled = true;
                 return steps;
+            }
+
+            LastParserMode = "llm_failed";
+            LastFallbackReason = "LLM returned unparseable response";
+            LastLlmEnabled = true;
+            PekaLogger.Warn("TaskParser", "LLM fallback: LLM response could not be parsed");
         }
-        catch
+        catch (Exception ex)
         {
+            LastParserMode = "llm_error";
+            LastFallbackReason = $"LLM call failed: {ex.Message}";
+            LastLlmEnabled = true;
+            PekaLogger.Warn("TaskParser", $"LLM fallback: LLM call failed - {ex.Message}");
         }
 
         return new List<AgentStep>
@@ -397,4 +436,11 @@ Output: [
             return match.Groups[1].Value;
         return "";
     }
+}
+
+public class ParseTaskMetadata
+{
+    public string FallbackReason { get; set; } = "";
+    public bool LlmEnabled { get; set; }
+    public string ParserMode { get; set; } = "none";
 }

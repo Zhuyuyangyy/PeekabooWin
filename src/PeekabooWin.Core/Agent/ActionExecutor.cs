@@ -40,13 +40,10 @@ public class ActionExecutor
         _tempFiles = tempFiles;
     }
 
-    public (bool success, string result) ExecuteAction(string action, Dictionary<string, string> args)
+    public async Task<(bool success, string result)> ExecuteActionAsync(string action, Dictionary<string, string> args, CancellationToken cancellationToken = default)
     {
-        return ExecuteActionAsync(action, args).GetAwaiter().GetResult();
-    }
+        cancellationToken.ThrowIfCancellationRequested();
 
-    public async Task<(bool success, string result)> ExecuteActionAsync(string action, Dictionary<string, string> args)
-    {
         switch (action)
         {
             case "click":
@@ -86,6 +83,7 @@ public class ActionExecutor
 
             case "find-on-screen":
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var window = args.GetValueOrDefault("window");
                 var text = args["text"];
                 var outPath = _tempFiles.CreateTempPath("ocr_find");
@@ -129,6 +127,7 @@ public class ActionExecutor
 
             case "ocr-click":
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var window = args.GetValueOrDefault("window");
                 var text = args["text"];
                 var outPath = _tempFiles.CreateTempPath("ocr_click");
@@ -321,6 +320,7 @@ public class ActionExecutor
 
             case "ocr-find":
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var text = args["text"];
                 var outPath = args["out"];
 
@@ -328,13 +328,12 @@ public class ActionExecutor
                 if (!cap.Success)
                     return (false, $"Screenshot failed: {cap.Error}");
 
-                using var ocrService = new OcrService("chi_sim+eng");
-                var result = await ocrService.RecognizeImageAsync(outPath);
+                var result = await _ocrService.RecognizeImageAsync(outPath);
 
-                if (result.Error != null)
+                if (!string.IsNullOrEmpty(result.Error))
                     return (false, $"OCR failed: {result.Error}");
 
-                var words = ocrService.FindWords(result, text);
+                var words = _ocrService.FindWords(result, text);
                 if (words.Count == 0)
                     return (false, $"Text not found: {text}");
 
@@ -351,15 +350,15 @@ public class ActionExecutor
 
             case "ocr":
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var outPath = args["out"];
                 var cap = _captureService.CaptureScreen(outPath);
                 if (!cap.Success)
                     return (false, $"Screenshot failed: {cap.Error}");
 
-                using var ocrService = new OcrService("chi_sim+eng");
-                var result = await ocrService.RecognizeImageAsync(outPath);
+                var result = await _ocrService.RecognizeImageAsync(outPath);
 
-                if (result.Error != null)
+                if (!string.IsNullOrEmpty(result.Error))
                     return (false, $"OCR failed: {result.Error}");
 
                 return (true, $"Recognized {result.Words.Count} words: {result.Text.Substring(0, Math.Min(200, result.Text.Length))}");

@@ -28,7 +28,7 @@ public class AgentOrchestrator
         _riskGate = riskGate;
     }
 
-    public async Task<AgentTaskResponse> RunAsync(AgentTaskRequest request)
+    public async Task<AgentTaskResponse> RunAsync(AgentTaskRequest request, CancellationToken cancellationToken = default)
     {
         var response = new AgentTaskResponse
         {
@@ -37,11 +37,15 @@ public class AgentOrchestrator
 
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             var plan = _taskParser.ParseTask(request.Task, request.Context);
             var steps = new List<AgentStep>();
 
             for (int i = 0; i < Math.Min(plan.Count, request.MaxSteps); i++)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+
                 var step = plan[i];
                 var stepResult = new AgentStep
                 {
@@ -79,13 +83,21 @@ public class AgentOrchestrator
                     }
                     else
                     {
-                        var (success, result) = await _actionExecutor.ExecuteActionAsync(step.Action, step.Args ?? new());
+                        var (success, result) = await _actionExecutor.ExecuteActionAsync(step.Action, step.Args ?? new(), cancellationToken);
                         stepResult.Success = success;
                         stepResult.Result = result;
                     }
 
                     steps.Add(stepResult);
                     if (!stepResult.Success && !request.DryRun) break;
+                }
+                catch (OperationCanceledException)
+                {
+                    stepResult.Success = false;
+                    stepResult.Error = "Operation was cancelled";
+                    steps.Add(stepResult);
+                    PekaLogger.Warn("AgentOrchestrator", $"Step {i + 1} cancelled");
+                    break;
                 }
                 catch (Exception ex)
                 {
@@ -101,6 +113,12 @@ public class AgentOrchestrator
             response.Success = steps.All(s => s.Success);
             response.FinalResult = BuildFinalResult(steps);
         }
+        catch (OperationCanceledException)
+        {
+            response.Success = false;
+            response.Error = "Task was cancelled";
+            PekaLogger.Warn("AgentOrchestrator", "RunAsync cancelled");
+        }
         catch (Exception ex)
         {
             response.Success = false;
@@ -109,11 +127,6 @@ public class AgentOrchestrator
         }
 
         return response;
-    }
-
-    public AgentTaskResponse Run(AgentTaskRequest request)
-    {
-        return RunAsync(request).GetAwaiter().GetResult();
     }
 
     private static string BuildFinalResult(List<AgentStep> steps)

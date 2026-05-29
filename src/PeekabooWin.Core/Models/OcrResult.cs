@@ -20,7 +20,7 @@ public class OcrResult
     public double Confidence { get; set; }
 
     [JsonPropertyName("engine")]
-    public string Engine { get; set; } = "Tesseract";
+    public string Engine { get; set; } = "";
 
     [JsonPropertyName("error")]
     public string? Error { get; set; }
