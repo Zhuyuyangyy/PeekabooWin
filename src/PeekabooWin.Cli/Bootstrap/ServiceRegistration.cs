@@ -32,6 +32,7 @@ public static class ServiceRegistration
         services.AddSingleton<ActionVerifier>();
         services.AddSingleton<ElementCandidateRanker>();
         services.AddSingleton<SkillReplayEngine>();
+        services.AddSingleton<SkillTransferController>();
         services.AddSingleton<TempFileManager>();
 
         services.AddSingleton<HttpClient>();

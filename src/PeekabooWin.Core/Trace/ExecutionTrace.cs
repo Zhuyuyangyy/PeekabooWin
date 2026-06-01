@@ -42,6 +42,7 @@ public class StepTrace
     public VerificationTrace? Verification { get; set; }
     public RecoveryTrace? Recovery { get; set; }
     public CandidateRankTrace? CandidateRanking { get; set; }
+    public TransferDecisionTrace? TransferDecision { get; set; }
     public DateTime? ExecutedAt { get; set; }
     public long LatencyMs { get; set; }
 }
@@ -75,4 +76,15 @@ public class CandidateRankTrace
     public string BestText { get; set; } = "";
     public string BestSource { get; set; } = "";
     public bool HasViableCandidate { get; set; }
+}
+
+public class TransferDecisionTrace
+{
+    public string? SkillId { get; set; }
+    public string? SkillName { get; set; }
+    public string Action { get; set; } = "";
+    public string Reason { get; set; } = "";
+    public string? BlockReason { get; set; }
+    public double SkillMatchScore { get; set; }
+    public double CoverageScore { get; set; } = 1.0;
 }

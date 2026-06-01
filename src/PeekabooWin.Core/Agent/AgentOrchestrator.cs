@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Linq;
 using PeekabooWin.Core.Capture;
 using PeekabooWin.Core.Infrastructure;
+using PeekabooWin.Core.Memory;
 using PeekabooWin.Core.Models;
 using PeekabooWin.Core.Ocr;
 using PeekabooWin.Core.Perception;
@@ -29,6 +30,7 @@ public class AgentOrchestrator
     private readonly UIAutomationService _uiaService;
     private readonly WindowService _windowService;
     private readonly TempFileManager _tempFiles;
+    private readonly SkillTransferController _skillTransferController;
 
     private static readonly HashSet<string> RiskGatedActions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -53,7 +55,8 @@ public class AgentOrchestrator
         OcrService ocrService,
         UIAutomationService uiaService,
         WindowService windowService,
-        TempFileManager tempFiles)
+        TempFileManager tempFiles,
+        SkillTransferController skillTransferController)
     {
         _taskParser = taskParser;
         _actionExecutor = actionExecutor;
@@ -68,6 +71,7 @@ public class AgentOrchestrator
         _uiaService = uiaService;
         _windowService = windowService;
         _tempFiles = tempFiles;
+        _skillTransferController = skillTransferController;
     }
 
     public async Task<AgentTaskResponse> RunAsync(AgentTaskRequest request, CancellationToken cancellationToken = default)
@@ -179,12 +183,61 @@ public class AgentOrchestrator
 
                     if (ElementTargetActions.Contains(step.Action))
                     {
+                        var windowKeyword = step.Args?.GetValueOrDefault("window")
+                            ?? step.Args?.GetValueOrDefault("title") ?? "";
+
+                        var sig = _skillIntegration.BuildWindowSignatureAsync(windowKeyword).GetAwaiter().GetResult();
+                        var app = AppProfile.FromWindowSignature(sig);
+
+                        var searchResults = _skillIntegration.SearchWithContextAsync(request.Task, windowKeyword).GetAwaiter().GetResult();
+                        var topSkill = searchResults.FirstOrDefault();
+
+                        TransferDecision? transferDecision = null;
+                        if (topSkill != null)
+                        {
+                            transferDecision = _skillTransferController.Decide(new TransferContext
+                            {
+                                Skill = topSkill.Skill,
+                                CurrentApp = app,
+                                TaskText = request.Task,
+                                SkillMatchScore = topSkill.Score.Total,
+                                VisibleTexts = sig.VisibleTexts
+                            });
+
+                            stepTrace.TransferDecision = new TransferDecisionTrace
+                            {
+                                SkillId = topSkill.Skill.SkillId,
+                                SkillName = topSkill.Skill.Name,
+                                Action = transferDecision.Action.ToString(),
+                                Reason = transferDecision.Reason,
+                                BlockReason = transferDecision.BlockReason,
+                                SkillMatchScore = transferDecision.SkillMatchScore,
+                                CoverageScore = transferDecision.CoverageScore
+                            };
+
+                            if (transferDecision.Action == TransferAction.BLOCK)
+                            {
+                                PekaLogger.Warn("AgentOrchestrator", $"Step {i + 1} skill transfer BLOCKED: {topSkill.Skill.SkillId} — {transferDecision.Reason}");
+                            }
+                            else if (transferDecision.Action == TransferAction.HUMAN_REVIEW)
+                            {
+                                PekaLogger.Warn("AgentOrchestrator", $"Step {i + 1} skill transfer HUMAN_REVIEW (CLI: blocking by default): {topSkill.Skill.SkillId} — {transferDecision.Reason}");
+                                stepResult.Success = false;
+                                stepResult.Error = $"Transfer blocked (HUMAN_REVIEW): {transferDecision.Reason}";
+                                stepTrace.Success = false;
+                                stepTrace.Error = stepResult.Error;
+                                stepSw.Stop();
+                                stepTrace.LatencyMs = stepSw.ElapsedMilliseconds;
+                                trace.StepTraces.Add(stepTrace);
+                                steps.Add(stepResult);
+                                break;
+                            }
+                        }
+
                         var targetText = step.Args?.GetValueOrDefault("name")
                             ?? step.Args?.GetValueOrDefault("element")
                             ?? step.Args?.GetValueOrDefault("text")
                             ?? "";
-                        var windowKeyword = step.Args?.GetValueOrDefault("window")
-                            ?? step.Args?.GetValueOrDefault("title");
 
                         if (!string.IsNullOrEmpty(targetText))
                         {
