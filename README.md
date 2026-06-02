@@ -19,6 +19,7 @@
 - **绘图**: GDI BitBlt
 - **输入**: SendInput
 - **输出**: JSON 结构化输出
+- **MCP**: TypeScript + @modelcontextprotocol/sdk
 
 ## 构建
 
@@ -140,26 +141,90 @@ peekaboo-win skill-replay --id vs_dialog_confirm --execute
 peekaboo-win skill-replay --id vs_notepad_edit --execute --window "记事本"
 ```
 
+### V0.15 MCP Server — LLM 原生桌面自动化
+
+PeekabooWin 现在可以作为 MCP Server 使用，让任何支持 MCP 的 LLM 客户端直接调用 Windows 桌面自动化能力。
+
+**启动方式**：
+
+```bash
+# 1. 先启动 PeekabooWin API Server
+peekaboo-win server --port 8025
+
+# 2. 构建 MCP Server
+cd src/peekaboo-mcp
+npm install && npm run build
+```
+
+**MCP 客户端配置**：
+
+```json
+{
+  "mcpServers": {
+    "peekaboo-win": {
+      "command": "node",
+      "args": ["/path/to/PeekabooWin/src/peekaboo-mcp/dist/index.js"],
+      "env": {
+        "PEEKABOO_API_URL": "http://localhost:8025"
+      }
+    }
+  }
+}
+```
+
+**15 个 MCP Tool**：
+
+| Tool | 说明 |
+|------|------|
+| `peekaboo_list_windows` | 列出桌面窗口 |
+| `peekaboo_focus_window` | 聚焦窗口 |
+| `peekaboo_screenshot` | 截图（全屏/指定窗口） |
+| `peekaboo_click` | 鼠标点击 |
+| `peekaboo_type` | 文本输入 |
+| `peekaboo_press_key` | 单键按下 |
+| `peekaboo_hotkey` | 快捷键组合 |
+| `peekaboo_ocr` | OCR 文字识别 |
+| `peekaboo_inspect` | UIA 控件树检查 |
+| `peekaboo_agent_run` | Agent 自动任务 |
+| `peekaboo_skill_search` | 技能搜索 |
+| `peekaboo_skill_list` | 技能列表 |
+| `peekaboo_skill_replay` | 技能回放 |
+| `peekaboo_risk_evaluate` | 风险评估 |
+| `peekaboo_execute` | 通用命令执行 |
+
+> MCP Server 通过 HTTP 桥接 PeekabooWin API Server，使用 stdio 传输协议，兼容 Claude Desktop、Cursor、Windsurf 等所有 MCP 客户端。
+
 ## 架构图
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                   PeekabooWin.Cli                   │
-│  CommandRouter → ICommandHandler (DI-injected)      │
-└──────────────┬──────────────────────────────────────┘
-               │
-┌──────────────▼──────────────────────────────────────┐
-│              PeekabooWin.Core                        │
-│  ┌──────────────┐  ┌────────────┐  ┌─────────────┐ │
-│  │   Agent/     │  │   Memory/  │  │Infrastructure│ │
-│  │ Orchestrator │  │ VisualSkill│  │  PekaLogger  │ │
-│  │ TaskParser   │  │ SkillReplay│  │  TraceIdProv │ │
-│  │ ActionExec   │  │ SkillScope │  │  TempFileMgr │ │
-│  │ RiskGate     │  │ AppProfile │  │  UIAutomation│ │
-│  │ VACP Integ   │  │ WindowSig  │  │  Win32 API   │ │
-│  │ TraceLogger  │  │ AnchorMap  │  │  Exceptions  │ │
-│  └──────────────┘  └────────────┘  └─────────────┘ │
-└──────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                    MCP 客户端 (Claude/Cursor/...)             │
+│                  MCP Protocol (stdio)                         │
+└──────────────────────────┬───────────────────────────────────┘
+                           │
+┌──────────────────────────▼───────────────────────────────────┐
+│                  peekaboo-mcp (TypeScript)                    │
+│              15 Tools → HTTP → PeekabooWin API               │
+└──────────────────────────┬───────────────────────────────────┘
+                           │
+┌──────────────────────────▼───────────────────────────────────┐
+│                   PeekabooWin.Cli                             │
+│  CommandRouter → ICommandHandler (DI-injected)               │
+│  ApiServer (HTTP :8025)                                       │
+└──────────────────────────┬───────────────────────────────────┘
+                           │
+┌──────────────────────────▼───────────────────────────────────┐
+│                   PeekabooWin.Core                            │
+│  ┌──────────────┐  ┌────────────┐  ┌─────────────┐          │
+│  │   Agent/     │  │   Memory/  │  │Infrastructure│          │
+│  │ Orchestrator │  │ VisualSkill│  │  PekaLogger  │          │
+│  │ TaskParser   │  │ SkillReplay│  │  TraceIdProv │          │
+│  │ ActionExec   │  │ SkillScope │  │  TempFileMgr │          │
+│  │ RiskGate     │  │ AppProfile │  │  UIAutomation│          │
+│  │ VACP Integ   │  │ WindowSig  │  │  Win32 API   │          │
+│  │ TransferCtrl │  │ AnchorMap  │  │  Exceptions  │          │
+│  └──────────────┘  └────────────┘  └─────────────┘          │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 ## 版本里程碑
@@ -192,6 +257,11 @@ peekaboo-win skill-replay --id vs_notepad_edit --execute --window "记事本"
   - V0.10.2: PeekabooException + error_code/hint/trace_id + PekaLogger（19 处 catch{} 消除）
   - V0.10.3: SkillReplayEngine 真执行（dry-run/execute/risk-gate）
   - V0.10.4: AgentOrchestrator 统一路径（TaskParser → RiskGate → ActionExecutor → Trace）
+- [x] **V0.15: MCP Server + Guard Integration**
+  - TypeScript MCP Server（15 Tools，stdio 传输，HTTP 桥接）
+  - SkillTransferController 接入 AgentOrchestrator 主循环
+  - TransferDecisionTrace 写入 ExecutionTrace
+  - 集成测试验证 Guard 在主路径触发
 
 ## 项目结构
 
@@ -201,20 +271,40 @@ PeekabooWin/
 │   ├── PeekabooWin.Cli/          # CLI 入口
 │   │   ├── Program.cs            # 最小入口（~107 行）
 │   │   ├── Bootstrap/            # DI 注册 + CommandRouter
-│   │   └── Commands/             # ICommandHandler 实现
-│   └── PeekabooWin.Core/         # 核心逻辑
-│       ├── Agent/                # AgentOrchestrator + TaskParser + ActionExecutor + VACP
-│       ├── Memory/               # SkillReplayEngine + VisualSkill + SkillScope
-│       ├── Models/               # CommandResult + 枚举类型
-│       ├── Exceptions/           # PeekabooException + 6 子类
-│       └── Infrastructure/       # PekaLogger + TraceIdProvider + TempFileManager + Win32/UIA
+│   │   ├── Commands/             # ICommandHandler 实现
+│   │   └── ApiServer.cs          # 内嵌 HTTP API 服务器
+│   ├── PeekabooWin.Core/         # 核心逻辑
+│   │   ├── Agent/                # AgentOrchestrator + TaskParser + ActionExecutor + VACP + SkillTransferController
+│   │   ├── Memory/               # SkillReplayEngine + VisualSkill + SkillScope + NegativeTransferGuard
+│   │   ├── Planning/             # VacpPlanner + ActionCandidate
+│   │   ├── Safety/               # ActionRiskGate
+│   │   ├── Perception/           # ElementCandidateRanker + UiElement
+│   │   ├── Verification/         # ActionVerifier + BeforeAfterVerifier
+│   │   ├── Capture/              # CaptureService (GDI BitBlt)
+│   │   ├── Input/                # InputService + StableTyper
+│   │   ├── Ocr/                  # OcrService (Tesseract)
+│   │   ├── UIAutomation/         # UIAutomationService + SeeService
+│   │   ├── Windows/              # WindowService (Win32)
+│   │   ├── Trace/                # ExecutionTrace + TransferDecisionTrace
+│   │   ├── Models/               # CommandResult + 枚举类型
+│   │   ├── Exceptions/           # PeekabooException + 6 子类
+│   │   └── Infrastructure/       # PekaLogger + TraceIdProvider + TempFileManager
+│   ├── PeekabooWin.ApiServer/    # 独立 ASP.NET Core API 服务
+│   └── peekaboo-mcp/             # TypeScript MCP Server
+│       ├── src/index.ts          # 15 MCP Tools
+│       ├── package.json
+│       └── tsconfig.json
 ├── tests/
-│   └── PeekabooWin.Core.Tests/   # xUnit 测试（30 tests）
-└── docs/
+│   └── PeekabooWin.Core.Tests/   # xUnit 测试（134 tests）
+├── benchmarks/
+│   └── RealDesktop30/            # 50 真实桌面场景基准测试
+├── tessdata/                     # Tesseract 语言数据
+└── docs/                         # 版本规格与 Demo 证据
 ```
 
 ## 相关文档
 
+- [Code Wiki](./CODE_WIKI.md)
 - [V0.9 技术规格](./docs/V0.9_SPEC.md)
 - [V0.9 冒烟测试](./docs/releases/V0.9_SMOKE_TEST.md)
 - [Demo 11: 跨应用文本输入](./docs/demo/Demo11_CrossApp_TextInput_Transfer.md)
