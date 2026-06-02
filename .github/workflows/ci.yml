@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore PeekabooWin.sln
+
+      - name: Build
+        run: dotnet build PeekabooWin.sln -c Release --no-restore
+
+      - name: Run unit tests
+        run: dotnet test tests/PeekabooWin.Core.Tests/PeekabooWin.Core.Tests.csproj -c Release --no-build --verbosity normal --logger "trx;LogFileName=test_results.trx"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: tests/PeekabooWin.Core.Tests/TestResults/**/*.trx

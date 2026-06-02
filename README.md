@@ -1,6 +1,31 @@
 # PeekabooWin - Windows Desktop Automation Kit
 
-> 对应 macOS Peekaboo 架构，重心放在 Windows 原生自动化层。
+> PeekabooWin 是 macOS 版 [Peekaboo](https://github.com/nicepkg/peekaboo) 的 Windows 对应实现，提供 Windows 原生桌面自动化能力。
+
+## Project Status
+
+| 能力 | 状态 | 说明 |
+|------|------|------|
+| 窗口管理 (list/focus/screenshot) | ✅ 可用 | 基于 Win32 API，稳定 |
+| 输入模拟 (click/type/hotkey) | ✅ 可用 | 基于 SendInput，稳定 |
+| UI Automation (inspect/find/click-element) | ✅ 可用 | 基于 UIA，稳定 |
+| OCR 文字识别 | ✅ 可用 | 基于 Tesseract，需 tessdata |
+| HTTP API Server | ✅ 可用 | RESTful API，支持 CORS |
+| MCP Server | ✅ 可用 | 15 Tools，stdio 传输 |
+| Agent 自然语言任务 | ⚠️ 需要 LLM Key | 规则解析仅支持简单格式（"click 100 200"），自然语言任务需要 `MINIMAX_API_KEY` |
+| Skill Memory / Replay | 🧪 实验性 | 代码完整，但未经真实端到端验证 |
+| Negative Transfer Guard | 🧪 实验性 | 已接入主循环，但只有单元测试触发过，无真实误迁移案例 |
+| VACP 闭环规划 | 🧪 实验性 | 代码完整，但 verification→recovery 链路未经真实场景验证 |
+
+**Live Benchmark 真实数据**（2026-06-02，无 LLM Key）：
+
+| 指标 | 值 |
+|------|---|
+| L0/L1 任务完成率 | **0%** (0/40) |
+| L2 Safety Block 正确率 | **100%** (10/10) |
+| 根因 | 无 MINIMAX_API_KEY → regex_fallback → 自然语言任务无法解析 |
+
+> 设置 `MINIMAX_API_KEY` 环境变量后，Agent 任务完成率预期会显著提升。
 
 ## 架构对应关系
 
@@ -227,41 +252,18 @@ npm install && npm run build
 └──────────────────────────────────────────────────────────────┘
 ```
 
-## 版本里程碑
+## CHANGELOG
 
-- [x] V0.1: 窗口窥视 + 绘图 + 鼠标键盘
-- [x] V0.2: UI Automation 控件树
-- [x] V0.3: OCR 文字识别底座
-- [x] V0.4: LLM Agent Runtime（自然语言任务）
-- [x] V0.5: HTTP API 服务（供 Hermes/OpenClaw 调用）
-- [x] V0.6: VACP — Vision-Action Closed-loop Planner（风险门槛 + 执行验证 + 失败恢复）
-  - V0.6.1: Risk Gate evidence（高风险投资中断）
-  - V0.6.2: OCR-grounded AI interaction（豆包网页 AI 交互闭环）
-- [x] **V0.8: Skill-Guided Execution（多维评分 + 执行策略 + SkillHint）**
-  - skill-search / skill-use-preview / skill-execute-guided
-  - SkillMatchScore（AppMatch / TextMatch / ActionMatch / RiskMatch / Recency）
-  - SkillExecutionPolicy（L0 高风险任务自动拦截）
-  - SkillHint 注入 VacpRequest（视觉 ranking，不 bypass VACP）
-- [x] **V0.9: Multi-App Skill Generalization（跨应用迁移 + 安全边界）**
-  - AppProfile + WindowSignature 实时窗口上下文
-  - SkillScope + SkillScopeValidator（App/WindowType/Anchor/风险域校验）
-  - AnchorMapping（语义锚点 ↔ OCR 文本映射）
-  - Negative Transfer Guard（高风险跨域迁移自动拦截）
-  - skill-search-context（窗口指纹 + AppProfile + 锚点候选搜索）
-  - Demo11: 跨应用文本输入（Notepad → Doubao Web，score=0.78，INJECT）
-  - Demo12: 跨窗口弹窗确认（Save Dialog → Error Dialog，blocked by forbidden domain）
-  - Demo13: 高风险转移拦截（L0 skill on payment app = BLOCK）
-- [x] **V0.10: Engineering Hardening（工程硬化）**
-  - V0.10.0: DI 容器 + ICommandHandler + CommandRouter（Program.cs 1159→107 行）
-  - V0.10.1: async/await 全链路 + TempFileManager（16→4 GetAwaiter）
-  - V0.10.2: PeekabooException + error_code/hint/trace_id + PekaLogger（19 处 catch{} 消除）
-  - V0.10.3: SkillReplayEngine 真执行（dry-run/execute/risk-gate）
-  - V0.10.4: AgentOrchestrator 统一路径（TaskParser → RiskGate → ActionExecutor → Trace）
-- [x] **V0.15: MCP Server + Guard Integration**
-  - TypeScript MCP Server（15 Tools，stdio 传输，HTTP 桥接）
-  - SkillTransferController 接入 AgentOrchestrator 主循环
-  - TransferDecisionTrace 写入 ExecutionTrace
-  - 集成测试验证 Guard 在主路径触发
+- **2025-05**: 窗口管理 + 输入模拟 + 截图 (V0.1)
+- **2025-05**: UI Automation 控件树 (V0.2)
+- **2025-05**: OCR 文字识别 (V0.3)
+- **2025-05**: LLM Agent Runtime + HTTP API (V0.4-V0.5)
+- **2025-05**: VACP 闭环规划 + 风险门控 (V0.6)
+- **2025-05**: Visual Skill Memory (V0.7, 🧪 实验性)
+- **2025-05**: Skill-Guided Execution + 多维评分 (V0.8, 🧪 实验性)
+- **2025-05**: 跨应用技能迁移 + Negative Transfer Guard (V0.9, 🧪 实验性)
+- **2025-05**: 工程硬化 (DI + async + 异常体系 + SkillReplay) (V0.10)
+- **2025-06**: MCP Server + Guard 接入主循环 + Live Benchmark
 
 ## 项目结构
 

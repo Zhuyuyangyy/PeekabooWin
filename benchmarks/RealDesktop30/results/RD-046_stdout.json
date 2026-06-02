@@ -1,0 +1,82 @@
+{
+  "success": true,
+  "command": "agent",
+  "data": {
+    "task": "execute",
+    "success": false,
+    "steps": [
+      {
+        "step": 1,
+        "thought": "Cannot parse task without LLM: execute",
+        "action": "error",
+        "args": {
+          "message": "No MINIMAX_API_KEY set, cannot parse complex tasks. Try simpler commands like 'click 100 200' or 'type hello'."
+        },
+        "result": "No MINIMAX_API_KEY set, cannot parse complex tasks. Try simpler commands like 'click 100 200' or 'type hello'.",
+        "success": false,
+        "error": null
+      }
+    ],
+    "final_result": "Failed at step 1: unknown error",
+    "llm_model": "minimax/MiniMax-M2.7",
+    "error": null,
+    "timeout_ms": 30000,
+    "cancelled": false,
+    "timeout_triggered": false,
+    "parser_mode": "regex_fallback",
+    "llm_enabled": false,
+    "fallback_reason": "MINIMAX_API_KEY not set",
+    "llm_error_code": "MISSING_API_KEY",
+    "trace": {
+      "traceId": "trace_20260602_175819",
+      "task": "execute",
+      "startedAt": "2026-06-02T09:58:19.7238471Z",
+      "completedAt": "2026-06-02T09:58:20.4581343Z",
+      "success": false,
+      "parserMode": "regex_fallback",
+      "llmEnabled": false,
+      "fallbackReason": "MINIMAX_API_KEY not set",
+      "decision": "ALLOW",
+      "riskLevel": "L0",
+      "groundingScore": 0,
+      "stepTraces": [
+        {
+          "stepIndex": 0,
+          "action": "error",
+          "args": {
+            "message": "No MINIMAX_API_KEY set, cannot parse complex tasks. Try simpler commands like 'click 100 200' or 'type hello'."
+          },
+          "thought": "Cannot parse task without LLM: execute",
+          "success": false,
+          "error": null,
+          "result": "No MINIMAX_API_KEY set, cannot parse complex tasks. Try simpler commands like 'click 100 200' or 'type hello'.",
+          "riskGate": null,
+          "verification": null,
+          "recovery": {
+            "strategy": "Retry",
+            "shouldRetry": true,
+            "recoveryStepCount": 1
+          },
+          "candidateRanking": null,
+          "transferDecision": null,
+          "executedAt": "2026-06-02T09:58:19.7415086Z",
+          "latencyMs": 715
+        }
+      ],
+      "error": null,
+      "cancelled": false,
+      "timeoutTriggered": false,
+      "timeoutMs": 30000,
+      "totalSteps": 1,
+      "successfulSteps": 0,
+      "failedSteps": 1,
+      "blockedSteps": 0,
+      "recoveryAttempts": 1
+    }
+  },
+  "error": null,
+  "error_code": null,
+  "hint": null,
+  "trace_id": "c1a81be9",
+  "timestamp": "2026-06-02T09:58:20.458593Z"
+}
