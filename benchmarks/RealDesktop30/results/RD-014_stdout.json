@@ -2,54 +2,60 @@
   "success": true,
   "command": "agent",
   "data": {
-    "task": "navigate",
+    "task": "navigate to Display settings",
     "success": false,
     "steps": [
       {
         "step": 1,
-        "thought": "Cannot parse task without LLM: navigate",
+        "thought": "Could not parse task: navigate to Display settings",
         "action": "error",
         "args": {
-          "message": "No MINIMAX_API_KEY set, cannot parse complex tasks. Try simpler commands like 'click 100 200' or 'type hello'."
+          "message": "Task parsing failed. Try commands like 'click 100 200', 'type hello', 'press enter'."
         },
-        "result": "No MINIMAX_API_KEY set, cannot parse complex tasks. Try simpler commands like 'click 100 200' or 'type hello'.",
+        "result": "Task parsing failed. Try commands like 'click 100 200', 'type hello', 'press enter'.",
         "success": false,
         "error": null
       }
     ],
     "final_result": "Failed at step 1: unknown error",
-    "llm_model": "minimax/MiniMax-M2.7",
+    "llm_model": "deepseek",
     "error": null,
     "timeout_ms": 30000,
     "cancelled": false,
     "timeout_triggered": false,
-    "parser_mode": "regex_fallback",
-    "llm_enabled": false,
-    "fallback_reason": "MINIMAX_API_KEY not set",
-    "llm_error_code": "MISSING_API_KEY",
+    "parser_mode": "llm_error",
+    "llm_enabled": true,
+    "fallback_reason": "LLM HTTP error: Response status code does not indicate success: 401 (Authorization Required).",
+    "llm_error_code": "LLM_HTTP_ERROR",
     "trace": {
-      "traceId": "trace_20260602_175721",
-      "task": "navigate",
-      "startedAt": "2026-06-02T09:57:21.9344501Z",
-      "completedAt": "2026-06-02T09:57:22.8676465Z",
+      "traceId": "trace_20260602_210253",
+      "task": "navigate to Display settings",
+      "startedAt": "2026-06-02T13:02:53.0917126Z",
+      "completedAt": "2026-06-02T13:02:53.9320026Z",
       "success": false,
-      "parserMode": "regex_fallback",
-      "llmEnabled": false,
-      "fallbackReason": "MINIMAX_API_KEY not set",
+      "parserMode": "llm_error",
+      "llmEnabled": true,
+      "fallbackReason": "LLM HTTP error: Response status code does not indicate success: 401 (Authorization Required).",
       "decision": "ALLOW",
       "riskLevel": "L0",
+      "taskRiskDecision": "ALLOW",
+      "taskRiskScore": 0,
+      "taskRiskPattern": null,
+      "planRiskDecision": "ALLOW",
+      "planRiskScore": 0,
+      "planRiskMatchedStep": null,
       "groundingScore": 0,
       "stepTraces": [
         {
           "stepIndex": 0,
           "action": "error",
           "args": {
-            "message": "No MINIMAX_API_KEY set, cannot parse complex tasks. Try simpler commands like 'click 100 200' or 'type hello'."
+            "message": "Task parsing failed. Try commands like 'click 100 200', 'type hello', 'press enter'."
           },
-          "thought": "Cannot parse task without LLM: navigate",
+          "thought": "Could not parse task: navigate to Display settings",
           "success": false,
           "error": null,
-          "result": "No MINIMAX_API_KEY set, cannot parse complex tasks. Try simpler commands like 'click 100 200' or 'type hello'.",
+          "result": "Task parsing failed. Try commands like 'click 100 200', 'type hello', 'press enter'.",
           "riskGate": null,
           "verification": null,
           "recovery": {
@@ -59,8 +65,8 @@
           },
           "candidateRanking": null,
           "transferDecision": null,
-          "executedAt": "2026-06-02T09:57:21.9529382Z",
-          "latencyMs": 913
+          "executedAt": "2026-06-02T13:02:53.4902267Z",
+          "latencyMs": 441
         }
       ],
       "error": null,
@@ -77,6 +83,6 @@
   "error": null,
   "error_code": null,
   "hint": null,
-  "trace_id": "3c945979",
-  "timestamp": "2026-06-02T09:57:22.8681629Z"
+  "trace_id": "2fb3c51a",
+  "timestamp": "2026-06-02T13:02:53.9323766Z"
 }

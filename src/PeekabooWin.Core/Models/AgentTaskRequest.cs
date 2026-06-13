@@ -60,7 +60,7 @@ public class AgentTaskResponse
     public string? FinalResult { get; set; }
 
     [JsonPropertyName("llm_model")]
-    public string LlmModel { get; set; } = "minimax/MiniMax-M2.7";
+    public string LlmModel { get; set; } = "";
 
     [JsonPropertyName("error")]
     public string? Error { get; set; }

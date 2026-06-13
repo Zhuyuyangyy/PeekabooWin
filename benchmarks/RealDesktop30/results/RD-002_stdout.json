@@ -2,65 +2,76 @@
   "success": true,
   "command": "agent",
   "data": {
-    "task": "type",
-    "success": false,
+    "task": "type long text with special characters",
+    "success": true,
     "steps": [
       {
         "step": 1,
-        "thought": "Cannot parse task without LLM: type",
-        "action": "error",
+        "thought": "Typing text: long text with special characters",
+        "action": "type",
         "args": {
-          "message": "No MINIMAX_API_KEY set, cannot parse complex tasks. Try simpler commands like 'click 100 200' or 'type hello'."
+          "text": "long text with special characters"
         },
-        "result": "No MINIMAX_API_KEY set, cannot parse complex tasks. Try simpler commands like 'click 100 200' or 'type hello'.",
-        "success": false,
+        "result": "Typed: long text with special characters",
+        "success": true,
         "error": null
       }
     ],
-    "final_result": "Failed at step 1: unknown error",
-    "llm_model": "minimax/MiniMax-M2.7",
+    "final_result": "Completed 1 step(s)",
+    "llm_model": "deepseek",
     "error": null,
     "timeout_ms": 30000,
     "cancelled": false,
     "timeout_triggered": false,
-    "parser_mode": "regex_fallback",
-    "llm_enabled": false,
-    "fallback_reason": "MINIMAX_API_KEY not set",
-    "llm_error_code": "MISSING_API_KEY",
+    "parser_mode": "rule_based",
+    "llm_enabled": true,
+    "fallback_reason": "",
+    "llm_error_code": "",
     "trace": {
-      "traceId": "trace_20260602_175703",
-      "task": "type",
-      "startedAt": "2026-06-02T09:57:03.2794574Z",
-      "completedAt": "2026-06-02T09:57:03.9542196Z",
-      "success": false,
-      "parserMode": "regex_fallback",
-      "llmEnabled": false,
-      "fallbackReason": "MINIMAX_API_KEY not set",
+      "traceId": "trace_20260602_210217",
+      "task": "type long text with special characters",
+      "startedAt": "2026-06-02T13:02:17.3212472Z",
+      "completedAt": "2026-06-02T13:02:18.2087227Z",
+      "success": true,
+      "parserMode": "rule_based",
+      "llmEnabled": true,
+      "fallbackReason": "",
       "decision": "ALLOW",
       "riskLevel": "L0",
+      "taskRiskDecision": "ALLOW",
+      "taskRiskScore": 0,
+      "taskRiskPattern": null,
+      "planRiskDecision": "ALLOW",
+      "planRiskScore": 0,
+      "planRiskMatchedStep": null,
       "groundingScore": 0,
       "stepTraces": [
         {
           "stepIndex": 0,
-          "action": "error",
+          "action": "type",
           "args": {
-            "message": "No MINIMAX_API_KEY set, cannot parse complex tasks. Try simpler commands like 'click 100 200' or 'type hello'."
+            "text": "long text with special characters"
           },
-          "thought": "Cannot parse task without LLM: type",
-          "success": false,
+          "thought": "Typing text: long text with special characters",
+          "success": true,
           "error": null,
-          "result": "No MINIMAX_API_KEY set, cannot parse complex tasks. Try simpler commands like 'click 100 200' or 'type hello'.",
-          "riskGate": null,
-          "verification": null,
-          "recovery": {
-            "strategy": "Retry",
-            "shouldRetry": true,
-            "recoveryStepCount": 1
+          "result": "Typed: long text with special characters",
+          "riskGate": {
+            "decision": "ALLOW",
+            "riskScore": 0.265,
+            "blockReason": null,
+            "requiredConfirmation": null
           },
+          "verification": {
+            "status": "Passed",
+            "reason": "Typed text 'long text with special characters' found in after-state OCR",
+            "confidence": 0.9
+          },
+          "recovery": null,
           "candidateRanking": null,
           "transferDecision": null,
-          "executedAt": "2026-06-02T09:57:03.2966241Z",
-          "latencyMs": 656
+          "executedAt": "2026-06-02T13:02:17.3279491Z",
+          "latencyMs": 879
         }
       ],
       "error": null,
@@ -68,15 +79,15 @@
       "timeoutTriggered": false,
       "timeoutMs": 30000,
       "totalSteps": 1,
-      "successfulSteps": 0,
-      "failedSteps": 1,
+      "successfulSteps": 1,
+      "failedSteps": 0,
       "blockedSteps": 0,
-      "recoveryAttempts": 1
+      "recoveryAttempts": 0
     }
   },
   "error": null,
   "error_code": null,
   "hint": null,
-  "trace_id": "e5c4b92f",
-  "timestamp": "2026-06-02T09:57:03.9545906Z"
+  "trace_id": "c34345c2",
+  "timestamp": "2026-06-02T13:02:18.2091767Z"
 }

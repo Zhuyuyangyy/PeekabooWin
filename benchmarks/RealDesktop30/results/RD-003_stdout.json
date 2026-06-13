@@ -1,0 +1,93 @@
+{
+  "success": true,
+  "command": "agent",
+  "data": {
+    "task": "type Chinese text in notepad",
+    "success": true,
+    "steps": [
+      {
+        "step": 1,
+        "thought": "Typing text: Chinese text in notepad",
+        "action": "type",
+        "args": {
+          "text": "Chinese text in notepad"
+        },
+        "result": "Typed: Chinese text in notepad",
+        "success": true,
+        "error": null
+      }
+    ],
+    "final_result": "Completed 1 step(s)",
+    "llm_model": "deepseek",
+    "error": null,
+    "timeout_ms": 30000,
+    "cancelled": false,
+    "timeout_triggered": false,
+    "parser_mode": "rule_based",
+    "llm_enabled": true,
+    "fallback_reason": "",
+    "llm_error_code": "",
+    "trace": {
+      "traceId": "trace_20260602_210219",
+      "task": "type Chinese text in notepad",
+      "startedAt": "2026-06-02T13:02:19.9734069Z",
+      "completedAt": "2026-06-02T13:02:20.840454Z",
+      "success": true,
+      "parserMode": "rule_based",
+      "llmEnabled": true,
+      "fallbackReason": "",
+      "decision": "ALLOW",
+      "riskLevel": "L0",
+      "taskRiskDecision": "ALLOW",
+      "taskRiskScore": 0,
+      "taskRiskPattern": null,
+      "planRiskDecision": "ALLOW",
+      "planRiskScore": 0,
+      "planRiskMatchedStep": null,
+      "groundingScore": 0,
+      "stepTraces": [
+        {
+          "stepIndex": 0,
+          "action": "type",
+          "args": {
+            "text": "Chinese text in notepad"
+          },
+          "thought": "Typing text: Chinese text in notepad",
+          "success": true,
+          "error": null,
+          "result": "Typed: Chinese text in notepad",
+          "riskGate": {
+            "decision": "ALLOW",
+            "riskScore": 0.265,
+            "blockReason": null,
+            "requiredConfirmation": null
+          },
+          "verification": {
+            "status": "Passed",
+            "reason": "Typed text 'Chinese text in notepad' found in after-state OCR",
+            "confidence": 0.9
+          },
+          "recovery": null,
+          "candidateRanking": null,
+          "transferDecision": null,
+          "executedAt": "2026-06-02T13:02:19.9806726Z",
+          "latencyMs": 858
+        }
+      ],
+      "error": null,
+      "cancelled": false,
+      "timeoutTriggered": false,
+      "timeoutMs": 30000,
+      "totalSteps": 1,
+      "successfulSteps": 1,
+      "failedSteps": 0,
+      "blockedSteps": 0,
+      "recoveryAttempts": 0
+    }
+  },
+  "error": null,
+  "error_code": null,
+  "hint": null,
+  "trace_id": "8588e3fb",
+  "timestamp": "2026-06-02T13:02:20.8407699Z"
+}

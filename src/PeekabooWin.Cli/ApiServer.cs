@@ -43,7 +43,7 @@ public class ApiServer
         _windowService = new WindowService();
         _captureService = new CaptureService(_windowService);
         _inputService = new InputService();
-        _uiaService = new UIAutomationService(_windowService);
+        _uiaService = new UIAutomationService(_windowService, _inputService);
         _ocrService = new OcrService();
         _agentService = new AgentService(_windowService, _captureService, _inputService, _uiaService, _ocrService);
 

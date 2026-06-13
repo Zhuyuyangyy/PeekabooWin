@@ -32,6 +32,7 @@ public class CommandRouter
             ["ocr"] = typeof(OcrCommandHandler),
             ["find-on-screen"] = typeof(OcrCommandHandler),
             ["ocr-click"] = typeof(OcrCommandHandler),
+            ["ocr-scan"] = typeof(OcrCommandHandler),
 
             ["agent"] = typeof(AgentCommandHandler),
 

@@ -16,6 +16,12 @@ public class ExecutionTrace
     public string FallbackReason { get; set; } = "";
     public string Decision { get; set; } = "ALLOW";
     public string RiskLevel { get; set; } = "L0";
+    public string? TaskRiskDecision { get; set; }
+    public double TaskRiskScore { get; set; }
+    public string? TaskRiskPattern { get; set; }
+    public string? PlanRiskDecision { get; set; }
+    public double PlanRiskScore { get; set; }
+    public string? PlanRiskMatchedStep { get; set; }
     public double GroundingScore { get; set; }
     public List<StepTrace> StepTraces { get; set; } = new();
     public string? Error { get; set; }

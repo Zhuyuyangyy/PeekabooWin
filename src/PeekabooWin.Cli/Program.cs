@@ -102,6 +102,7 @@ V0.3 - OCR:
   ocr [--window K] [--text T] [--lang L] [--click]
   find-on-screen --text T [--window K]
   ocr-click --text T [--window K]
+  ocr-scan [--window K]            Scan all visible text with screen coords (works on any app)
 
 V0.4 - Agent:
   agent --task T [--max-steps N] [--dry-run] [--context C]

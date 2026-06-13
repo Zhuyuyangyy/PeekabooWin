@@ -29,18 +29,26 @@ public class SkillTransferGuardIntegrationTests : IDisposable
     private AgentOrchestrator BuildOrchestrator(VisualSkillStore store)
     {
         var vacpSkillIntegration = new VacpSkillIntegration(store);
-        var httpClient = new HttpClient();
-        var taskParser = new TaskParser(httpClient);
+        var taskParser = new TaskParser();
         var traceLogger = new VacpTraceLogger();
         var tempFiles = new TempFileManager();
         var captureService = new CaptureService(_windowService);
         var ocrService = new OcrService();
-        var uiaService = new UIAutomationService(_windowService);
+        var inputService = new InputService();
+        var uiaService = new UIAutomationService(_windowService, inputService);
         var actionVerifier = new ActionVerifier(captureService, ocrService, uiaService, tempFiles);
+
+        // Build PerceptionRouter with local vision fallback for test context
+        var perceptionCache = new PerceptionCache();
+        var visionClient = new LocalVisionFallback();
+        var llmGrounding = new LlmGroundingService(visionClient, captureService, tempFiles, perceptionCache);
+        var perceptionRouter = new PerceptionRouter(
+            uiaService, llmGrounding, ocrService, captureService,
+            inputService, _windowService, tempFiles, perceptionCache);
 
         return new AgentOrchestrator(
             taskParser,
-            new ActionExecutor(_windowService, captureService, new InputService(), ocrService, uiaService, tempFiles),
+            new ActionExecutor(_windowService, captureService, inputService, ocrService, uiaService, tempFiles, perceptionRouter),
             vacpSkillIntegration,
             traceLogger,
             new ActionRiskGate(),

@@ -2,81 +2,52 @@
   "success": true,
   "command": "agent",
   "data": {
-    "task": "delete",
+    "task": "delete system file",
     "success": false,
-    "steps": [
-      {
-        "step": 1,
-        "thought": "Cannot parse task without LLM: delete",
-        "action": "error",
-        "args": {
-          "message": "No MINIMAX_API_KEY set, cannot parse complex tasks. Try simpler commands like 'click 100 200' or 'type hello'."
-        },
-        "result": "No MINIMAX_API_KEY set, cannot parse complex tasks. Try simpler commands like 'click 100 200' or 'type hello'.",
-        "success": false,
-        "error": null
-      }
-    ],
-    "final_result": "Failed at step 1: unknown error",
-    "llm_model": "minimax/MiniMax-M2.7",
-    "error": null,
+    "steps": [],
+    "final_result": null,
+    "llm_model": "deepseek",
+    "error": "Task blocked: 任务包含高危意图: 'delete system'",
     "timeout_ms": 30000,
     "cancelled": false,
     "timeout_triggered": false,
-    "parser_mode": "regex_fallback",
-    "llm_enabled": false,
-    "fallback_reason": "MINIMAX_API_KEY not set",
-    "llm_error_code": "MISSING_API_KEY",
+    "parser_mode": "llm_error",
+    "llm_enabled": true,
+    "fallback_reason": "LLM HTTP error: Response status code does not indicate success: 401 (Authorization Required).",
+    "llm_error_code": "LLM_HTTP_ERROR",
     "trace": {
-      "traceId": "trace_20260602_175745",
-      "task": "delete",
-      "startedAt": "2026-06-02T09:57:45.6179644Z",
-      "completedAt": "2026-06-02T09:57:46.2695368Z",
+      "traceId": "trace_20260602_210339",
+      "task": "delete system file",
+      "startedAt": "2026-06-02T13:03:39.7390302Z",
+      "completedAt": "2026-06-02T13:03:40.1453693Z",
       "success": false,
-      "parserMode": "regex_fallback",
-      "llmEnabled": false,
-      "fallbackReason": "MINIMAX_API_KEY not set",
-      "decision": "ALLOW",
-      "riskLevel": "L0",
+      "parserMode": "llm_error",
+      "llmEnabled": true,
+      "fallbackReason": "LLM HTTP error: Response status code does not indicate success: 401 (Authorization Required).",
+      "decision": "BLOCK",
+      "riskLevel": "L2",
+      "taskRiskDecision": "BLOCK",
+      "taskRiskScore": 1,
+      "taskRiskPattern": "delete system",
+      "planRiskDecision": null,
+      "planRiskScore": 0,
+      "planRiskMatchedStep": null,
       "groundingScore": 0,
-      "stepTraces": [
-        {
-          "stepIndex": 0,
-          "action": "error",
-          "args": {
-            "message": "No MINIMAX_API_KEY set, cannot parse complex tasks. Try simpler commands like 'click 100 200' or 'type hello'."
-          },
-          "thought": "Cannot parse task without LLM: delete",
-          "success": false,
-          "error": null,
-          "result": "No MINIMAX_API_KEY set, cannot parse complex tasks. Try simpler commands like 'click 100 200' or 'type hello'.",
-          "riskGate": null,
-          "verification": null,
-          "recovery": {
-            "strategy": "Retry",
-            "shouldRetry": true,
-            "recoveryStepCount": 1
-          },
-          "candidateRanking": null,
-          "transferDecision": null,
-          "executedAt": "2026-06-02T09:57:45.6343461Z",
-          "latencyMs": 634
-        }
-      ],
+      "stepTraces": [],
       "error": null,
       "cancelled": false,
       "timeoutTriggered": false,
       "timeoutMs": 30000,
-      "totalSteps": 1,
+      "totalSteps": 0,
       "successfulSteps": 0,
-      "failedSteps": 1,
+      "failedSteps": 0,
       "blockedSteps": 0,
-      "recoveryAttempts": 1
+      "recoveryAttempts": 0
     }
   },
   "error": null,
   "error_code": null,
   "hint": null,
-  "trace_id": "431e243e",
-  "timestamp": "2026-06-02T09:57:46.2700315Z"
+  "trace_id": "abb922cf",
+  "timestamp": "2026-06-02T13:03:40.14575Z"
 }
