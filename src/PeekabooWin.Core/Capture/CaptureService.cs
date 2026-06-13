@@ -54,9 +54,16 @@ public class CaptureService
     [DllImport("user32.dll")]
     static extern int GetSystemMetrics(int nIndex);
 
+    [DllImport("user32.dll", SetLastError = true)]
+    static extern bool PrintWindow(IntPtr hWnd, IntPtr hdcBlt, uint nFlags);
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    static extern int GetClassName(IntPtr hWnd, System.Text.StringBuilder lpClassName, int nMaxCount);
+
     const int SM_CXSCREEN = 0;
     const int SM_CYSCREEN = 1;
     const uint SRCCOPY = 0x00CC0020;
+    const uint PW_RENDERFULLCONTENT = 0x00000002;
 
     #endregion
 
@@ -155,12 +162,51 @@ public class CaptureService
                 $"CaptureWindowHandle: logical=({logicalX},{logicalY},{logicalW}x{logicalH}), " +
                 $"physical=({physX},{physY},{physW}x{physH}), scale={scaleFactor:F2}");
 
-            hdcScreen = GetDC(IntPtr.Zero);
+            // Detect UWP windows (Windows.UI.Core.CoreWindow / ApplicationFrameWindow).
+            // PrintWindow cannot render XAML/DirectComposition content, so use BitBlt for them.
+            bool isUwp = IsUwpWindow(hWnd);
+
+            hdcScreen = GetDC(hWnd);
             hdcMem = CreateCompatibleDC(hdcScreen);
             hBitmap = CreateCompatibleBitmap(hdcScreen, physW, physH);
             IntPtr hOld = SelectObject(hdcMem, hBitmap);
 
-            BitBlt(hdcMem, 0, 0, physW, physH, hdcScreen, physX, physY, SRCCOPY);
+            if (isUwp)
+            {
+                // UWP apps: PrintWindow produces empty/black bitmaps. Use BitBlt from screen DC.
+                PekaLogger.Debug("CaptureService",
+                    $"UWP window detected for '{title}', using BitBlt (occlusion possible)");
+                IntPtr hdcScreenDesktop = GetDC(IntPtr.Zero);
+                try
+                {
+                    BitBlt(hdcMem, 0, 0, physW, physH, hdcScreenDesktop, physX, physY, SRCCOPY);
+                }
+                finally
+                {
+                    ReleaseDC(IntPtr.Zero, hdcScreenDesktop);
+                }
+            }
+            else
+            {
+                // Win32/Chrome/Electron apps: PrintWindow renders the window's own content
+                // regardless of occlusion by other windows.
+                bool printed = PrintWindow(hWnd, hdcMem, PW_RENDERFULLCONTENT);
+                if (!printed)
+                {
+                    // Fallback: BitBlt from screen DC
+                    PekaLogger.Warn("CaptureService",
+                        $"PrintWindow failed for '{title}', falling back to BitBlt (occlusion possible)");
+                    IntPtr hdcScreenFallback = GetDC(IntPtr.Zero);
+                    try
+                    {
+                        BitBlt(hdcMem, 0, 0, physW, physH, hdcScreenFallback, physX, physY, SRCCOPY);
+                    }
+                    finally
+                    {
+                        ReleaseDC(IntPtr.Zero, hdcScreenFallback);
+                    }
+                }
+            }
 
             SelectObject(hdcMem, hOld);
 
@@ -183,7 +229,7 @@ public class CaptureService
         }
         finally
         {
-            Cleanup(hdcMem, hBitmap, hdcScreen);
+            Cleanup(hdcMem, hBitmap, hdcScreen, hWnd);
         }
     }
 
@@ -386,10 +432,20 @@ public class CaptureService
         }
     }
 
-    private void Cleanup(IntPtr hdcMem, IntPtr hBitmap, IntPtr hdcScreen)
+    private static bool IsUwpWindow(IntPtr hWnd)
+    {
+        var sb = new System.Text.StringBuilder(256);
+        int len = GetClassName(hWnd, sb, sb.Capacity);
+        if (len <= 0) return false;
+        string className = sb.ToString();
+        return className == "Windows.UI.Core.CoreWindow"
+            || className == "ApplicationFrameWindow";
+    }
+
+    private void Cleanup(IntPtr hdcMem, IntPtr hBitmap, IntPtr hdcScreen, IntPtr hWnd = default)
     {
         if (hBitmap != IntPtr.Zero) DeleteObject(hBitmap);
         if (hdcMem != IntPtr.Zero) DeleteDC(hdcMem);
-        if (hdcScreen != IntPtr.Zero) ReleaseDC(IntPtr.Zero, hdcScreen);
+        if (hdcScreen != IntPtr.Zero) ReleaseDC(hWnd, hdcScreen);
     }
 }

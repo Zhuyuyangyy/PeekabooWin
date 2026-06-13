@@ -696,6 +696,8 @@ Output: [
                     return (false, "No active window found");
 
                 var element = args["element"];
+
+                // Phase 1: Try UIA on the active window
                 var findResult = _uiaService.FindByName(activeWin.Title, element);
                 if (findResult.Success && findResult.Count > 0)
                 {
@@ -709,6 +711,7 @@ Output: [
                     }
                 }
 
+                // Phase 1b: Try UIA on all windows whose title contains the element
                 foreach (var win in windows.Where(w => w.Title.Contains(element)))
                 {
                     var r = _uiaService.FindByName(win.Title, element);
@@ -722,7 +725,43 @@ Output: [
                     }
                 }
 
-                return (false, $"Cannot find element: {element}");
+                // Phase 2: OCR fallback — critical for Chromium, Electron, UWP apps
+                // where UIA returns empty frames.
+                {
+                    var tempPath = Path.Combine(Path.GetTempPath(), $"agent_click_{Guid.NewGuid():N}.png");
+                    try
+                    {
+                        var cap = _captureService.CaptureWindow(activeWin.Title, tempPath);
+                        if (cap.Success)
+                        {
+                            var ocrResult = await _ocrService.RecognizeImageAsync(tempPath);
+                            if (string.IsNullOrEmpty(ocrResult.Error))
+                            {
+                                var center = _ocrService.FindWordCenter(ocrResult, element);
+                                if (center != null)
+                                {
+                                    int screenX = center.Value.x;
+                                    int screenY = center.Value.y;
+                                    double scale = DpiContext.Default.GetScaleFactor(activeWin.HandleIntPtr);
+                                    screenX += (int)Math.Round(activeWin.Rect.X * scale);
+                                    screenY += (int)Math.Round(activeWin.Rect.Y * scale);
+                                    _inputService.Click(screenX, screenY);
+                                    return (true, $"Clicked '{element}' at ({screenX}, {screenY}) via OCR in '{activeWin.Title}'");
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        PekaLogger.Warn("AgentService", $"OCR fallback failed for click-element-guess: {ex.Message}");
+                    }
+                    finally
+                    {
+                        try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
+                    }
+                }
+
+                return (false, $"Cannot find element: {element} (tried UIA and OCR on '{activeWin.Title}')");
             }
 
             case "ocr-find":
