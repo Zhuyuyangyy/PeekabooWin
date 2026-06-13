@@ -31,10 +31,11 @@ public class AgentOrchestrator
     private readonly WindowService _windowService;
     private readonly TempFileManager _tempFiles;
     private readonly SkillTransferController _skillTransferController;
+    private readonly ILlmClient? _llmClient;
 
     private static readonly HashSet<string> RiskGatedActions = new(StringComparer.OrdinalIgnoreCase)
     {
-        "type", "click", "hotkey", "ocr-click"
+        "type", "click", "hotkey", "ocr-click", "press"
     };
 
     private static readonly HashSet<string> ElementTargetActions = new(StringComparer.OrdinalIgnoreCase)
@@ -56,7 +57,8 @@ public class AgentOrchestrator
         UIAutomationService uiaService,
         WindowService windowService,
         TempFileManager tempFiles,
-        SkillTransferController skillTransferController)
+        SkillTransferController skillTransferController,
+        ILlmClient? llmClient = null)
     {
         _taskParser = taskParser;
         _actionExecutor = actionExecutor;
@@ -72,6 +74,7 @@ public class AgentOrchestrator
         _windowService = windowService;
         _tempFiles = tempFiles;
         _skillTransferController = skillTransferController;
+        _llmClient = llmClient;
     }
 
     public async Task<AgentTaskResponse> RunAsync(AgentTaskRequest request, CancellationToken cancellationToken = default)
@@ -111,9 +114,48 @@ public class AgentOrchestrator
             response.LlmEnabled = parseMeta.LlmEnabled;
             response.FallbackReason = parseMeta.FallbackReason;
             response.LlmErrorCode = parseMeta.LlmErrorCode;
+            response.LlmModel = _llmClient?.ProviderName ?? "none";
             trace.ParserMode = parseMeta.ParserMode;
             trace.LlmEnabled = parseMeta.LlmEnabled;
             trace.FallbackReason = parseMeta.FallbackReason;
+
+            var taskRiskDecision = _riskGate.EvaluateTask(request.Task);
+            trace.TaskRiskDecision = taskRiskDecision.Decision.ToString().ToUpperInvariant();
+            trace.TaskRiskScore = taskRiskDecision.RiskScore;
+            trace.TaskRiskPattern = taskRiskDecision.MatchedPattern;
+
+            if (taskRiskDecision.Decision == RiskLevel.Block)
+            {
+                PekaLogger.Warn("AgentOrchestrator", $"Task blocked by task-level risk gate: {taskRiskDecision.BlockReason}");
+                response.Success = false;
+                response.Error = $"Task blocked: {taskRiskDecision.BlockReason}";
+                response.LlmModel = _llmClient?.ProviderName ?? "none";
+                trace.Success = false;
+                trace.Decision = "BLOCK";
+                trace.RiskLevel = "L2";
+                trace.CompletedAt = DateTime.UtcNow;
+                response.Trace = trace;
+                return response;
+            }
+
+            var planRiskDecision = _riskGate.EvaluatePlan(plan, request.Task);
+            trace.PlanRiskDecision = planRiskDecision.Decision.ToString().ToUpperInvariant();
+            trace.PlanRiskScore = planRiskDecision.RiskScore;
+            trace.PlanRiskMatchedStep = planRiskDecision.MatchedStep;
+
+            if (planRiskDecision.Decision == RiskLevel.Block)
+            {
+                PekaLogger.Warn("AgentOrchestrator", $"Plan blocked by plan-level risk gate: {planRiskDecision.BlockReason}");
+                response.Success = false;
+                response.Error = $"Plan blocked: {planRiskDecision.BlockReason}";
+                response.LlmModel = _llmClient?.ProviderName ?? "none";
+                trace.Success = false;
+                trace.Decision = "BLOCK";
+                trace.RiskLevel = "L2";
+                trace.CompletedAt = DateTime.UtcNow;
+                response.Trace = trace;
+                return response;
+            }
 
             var steps = new List<AgentStep>();
 

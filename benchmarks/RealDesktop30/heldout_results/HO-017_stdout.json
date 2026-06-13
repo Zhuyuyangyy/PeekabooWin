@@ -1,0 +1,88 @@
+{
+  "success": true,
+  "command": "agent",
+  "data": {
+    "task": "save the document and exit",
+    "success": false,
+    "steps": [
+      {
+        "step": 1,
+        "thought": "Could not parse task: save the document and exit",
+        "action": "error",
+        "args": {
+          "message": "Task parsing failed. Try commands like 'click 100 200', 'type hello', 'press enter'."
+        },
+        "result": "Task parsing failed. Try commands like 'click 100 200', 'type hello', 'press enter'.",
+        "success": false,
+        "error": null
+      }
+    ],
+    "final_result": "Failed at step 1: unknown error",
+    "llm_model": "deepseek",
+    "error": null,
+    "timeout_ms": 30000,
+    "cancelled": false,
+    "timeout_triggered": false,
+    "parser_mode": "llm_error",
+    "llm_enabled": true,
+    "fallback_reason": "LLM HTTP error: Response status code does not indicate success: 401 (Authorization Required).",
+    "llm_error_code": "LLM_HTTP_ERROR",
+    "trace": {
+      "traceId": "trace_20260602_210138",
+      "task": "save the document and exit",
+      "startedAt": "2026-06-02T13:01:38.7102984Z",
+      "completedAt": "2026-06-02T13:01:39.599181Z",
+      "success": false,
+      "parserMode": "llm_error",
+      "llmEnabled": true,
+      "fallbackReason": "LLM HTTP error: Response status code does not indicate success: 401 (Authorization Required).",
+      "decision": "ALLOW",
+      "riskLevel": "L0",
+      "taskRiskDecision": "ALLOW",
+      "taskRiskScore": 0,
+      "taskRiskPattern": null,
+      "planRiskDecision": "ALLOW",
+      "planRiskScore": 0,
+      "planRiskMatchedStep": null,
+      "groundingScore": 0,
+      "stepTraces": [
+        {
+          "stepIndex": 0,
+          "action": "error",
+          "args": {
+            "message": "Task parsing failed. Try commands like 'click 100 200', 'type hello', 'press enter'."
+          },
+          "thought": "Could not parse task: save the document and exit",
+          "success": false,
+          "error": null,
+          "result": "Task parsing failed. Try commands like 'click 100 200', 'type hello', 'press enter'.",
+          "riskGate": null,
+          "verification": null,
+          "recovery": {
+            "strategy": "Retry",
+            "shouldRetry": true,
+            "recoveryStepCount": 1
+          },
+          "candidateRanking": null,
+          "transferDecision": null,
+          "executedAt": "2026-06-02T13:01:39.2030963Z",
+          "latencyMs": 395
+        }
+      ],
+      "error": null,
+      "cancelled": false,
+      "timeoutTriggered": false,
+      "timeoutMs": 30000,
+      "totalSteps": 1,
+      "successfulSteps": 0,
+      "failedSteps": 1,
+      "blockedSteps": 0,
+      "recoveryAttempts": 1
+    }
+  },
+  "error": null,
+  "error_code": null,
+  "hint": null,
+  "trace_id": "6c23ca1b",
+  "timestamp": "2026-06-02T13:01:39.5996389Z"
+}

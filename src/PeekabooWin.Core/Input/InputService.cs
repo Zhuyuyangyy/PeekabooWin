@@ -1,10 +1,22 @@
 using System.Runtime.InteropServices;
+using PeekabooWin.Core.Infrastructure;
 using PeekabooWin.Core.Models;
 
 namespace PeekabooWin.Core.Input;
 
 public class InputService
 {
+    private readonly DpiContext _dpiContext;
+
+    /// <summary>
+    /// Creates a new InputService instance.
+    /// </summary>
+    /// <param name="dpiContext">DPI context for scale-aware coordinate conversion. Defaults to DpiContext.Default.</param>
+    public InputService(DpiContext? dpiContext = null)
+    {
+        _dpiContext = dpiContext ?? DpiContext.Default;
+    }
+
     #region Win32 API
 
     [DllImport("user32.dll")]
@@ -83,8 +95,9 @@ public class InputService
     #endregion
 
     /// <summary>
-    /// 获取当前鼠标坐标
+    /// Gets the current cursor position in physical pixel coordinates.
     /// </summary>
+    /// <returns>The current cursor X and Y coordinates.</returns>
     public (int X, int Y) GetCursorPos()
     {
         GetCursorPos(out POINT p);
@@ -92,12 +105,164 @@ public class InputService
     }
 
     /// <summary>
-    /// 移动鼠标到指定坐标并点击
+    /// Moves the mouse to the specified screen pixel coordinates and performs a left click.
+    /// Coordinates from Win32, UI Automation, OCR over screenshots, and MCP clients are already
+    /// in physical screen space, so no DPI scaling is applied here.
     /// </summary>
+    /// <param name="x">Physical screen X coordinate in pixels.</param>
+    /// <param name="y">Physical screen Y coordinate in pixels.</param>
+    /// <returns>A CommandResult indicating success or failure.</returns>
     public CommandResult Click(int x, int y)
+    {
+        return ClickPhysicalCore(x, y, "click", "Click");
+    }
+
+    /// <summary>
+    /// Performs a left click at the current cursor position.
+    /// </summary>
+    /// <returns>A CommandResult indicating success or failure.</returns>
+    public CommandResult ClickCurrent()
+    {
+        var (x, y) = GetCursorPos();
+        // ClickCurrent operates on physical coordinates directly, use ClickPhysical
+        return ClickPhysical(x, y);
+    }
+
+    /// <summary>
+    /// Moves the mouse to the specified screen pixel coordinates and performs a right click.
+    /// No DPI scaling is applied.
+    /// </summary>
+    /// <param name="x">Physical screen X coordinate in pixels.</param>
+    /// <param name="y">Physical screen Y coordinate in pixels.</param>
+    /// <returns>A CommandResult indicating success or failure.</returns>
+    public CommandResult RightClick(int x, int y)
+    {
+        return RightClickPhysicalCore(x, y, "right_click", "RightClick");
+    }
+
+    /// <summary>
+    /// Performs a left click from logical (DPI-independent) coordinates.
+    /// Use this only when the caller explicitly has logical coordinates.
+    /// </summary>
+    public CommandResult ClickLogical(int x, int y)
     {
         try
         {
+            double scale = _dpiContext.GetPrimaryScale();
+            var (physicalX, physicalY) = _dpiContext.LogicalToPhysical(x, y, scale);
+
+            if (!_dpiContext.IsWithinScreenBounds(physicalX, physicalY))
+            {
+                PekaLogger.Warn("InputService",
+                    $"ClickLogical position ({physicalX},{physicalY}) is outside screen bounds. " +
+                    $"Logical=({x},{y}), scale={scale:F2}");
+                return CommandResult.Fail("click_logical",
+                    $"Position ({physicalX},{physicalY}) is outside screen bounds",
+                    hint: $"Logical coords ({x},{y}) at scale {scale:F2} resulted in physical ({physicalX},{physicalY})");
+            }
+
+            var result = ClickPhysicalCore(physicalX, physicalY, "click_logical", "ClickLogical");
+            return result.Success
+                ? CommandResult.Ok("click_logical", new { logicalX = x, logicalY = y, physicalX, physicalY, scale })
+                : result;
+        }
+        catch (Exception ex)
+        {
+            PekaLogger.Error("InputService", $"ClickLogical failed at ({x},{y}): {ex.Message}", ex);
+            return CommandResult.Fail("click_logical", ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Performs a right click from logical (DPI-independent) coordinates.
+    /// Use this only when the caller explicitly has logical coordinates.
+    /// </summary>
+    public CommandResult RightClickLogical(int x, int y)
+    {
+        try
+        {
+            double scale = _dpiContext.GetPrimaryScale();
+            var (physicalX, physicalY) = _dpiContext.LogicalToPhysical(x, y, scale);
+
+            if (!_dpiContext.IsWithinScreenBounds(physicalX, physicalY))
+            {
+                PekaLogger.Warn("InputService",
+                    $"RightClickLogical position ({physicalX},{physicalY}) is outside screen bounds. " +
+                    $"Logical=({x},{y}), scale={scale:F2}");
+                return CommandResult.Fail("right_click_logical",
+                    $"Position ({physicalX},{physicalY}) is outside screen bounds",
+                    hint: $"Logical coords ({x},{y}) at scale {scale:F2} resulted in physical ({physicalX},{physicalY})");
+            }
+
+            var result = RightClickPhysicalCore(physicalX, physicalY, "right_click_logical", "RightClickLogical");
+            return result.Success
+                ? CommandResult.Ok("right_click_logical", new { logicalX = x, logicalY = y, physicalX, physicalY, scale })
+                : result;
+        }
+        catch (Exception ex)
+        {
+            PekaLogger.Error("InputService", $"RightClickLogical failed at ({x},{y}): {ex.Message}", ex);
+            return CommandResult.Fail("right_click_logical", ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Verifies that the cursor is currently at the expected physical pixel coordinates,
+    /// within the specified tolerance (in pixels).
+    /// </summary>
+    /// <param name="expectedX">Expected X coordinate in physical pixels.</param>
+    /// <param name="expectedY">Expected Y coordinate in physical pixels.</param>
+    /// <param name="tolerance">Maximum allowed deviation in pixels. Defaults to 5.</param>
+    /// <returns>True if the cursor is within tolerance of the expected position; false otherwise.</returns>
+    public bool VerifyClickPosition(int expectedX, int expectedY, int tolerance = 5)
+    {
+        try
+        {
+            var (actualX, actualY) = GetCursorPos();
+            int deltaX = Math.Abs(actualX - expectedX);
+            int deltaY = Math.Abs(actualY - expectedY);
+
+            bool withinTolerance = deltaX <= tolerance && deltaY <= tolerance;
+
+            PekaLogger.Debug("InputService",
+                $"VerifyClickPosition: expected=({expectedX},{expectedY}), actual=({actualX},{actualY}), " +
+                $"delta=({deltaX},{deltaY}), tolerance={tolerance}, result={withinTolerance}");
+
+            return withinTolerance;
+        }
+        catch (Exception ex)
+        {
+            PekaLogger.Warn("InputService", $"VerifyClickPosition failed: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Performs a left click using physical (already-scaled) pixel coordinates.
+    /// No DPI conversion is applied; the coordinates are used directly.
+    /// Use this when coordinates are already in physical pixel space.
+    /// </summary>
+    /// <param name="x">Physical X coordinate in pixels.</param>
+    /// <param name="y">Physical Y coordinate in pixels.</param>
+    /// <returns>A CommandResult indicating success or failure.</returns>
+    public CommandResult ClickPhysical(int x, int y)
+    {
+        return ClickPhysicalCore(x, y, "click_physical", "ClickPhysical");
+    }
+
+    private CommandResult ClickPhysicalCore(int x, int y, string commandName, string logName)
+    {
+        try
+        {
+            // Validate screen bounds
+            if (!_dpiContext.IsWithinScreenBounds(x, y))
+            {
+                PekaLogger.Warn("InputService",
+                    $"{logName} position ({x},{y}) is outside screen bounds");
+                return CommandResult.Fail(commandName,
+                    $"Position ({x},{y}) is outside screen bounds");
+            }
+
             SetCursorPos(x, y);
             Thread.Sleep(50);
 
@@ -108,30 +273,30 @@ public class InputService
             inputs[1].u.mi = new MOUSEINPUT { dx = 0, dy = 0, dwFlags = MOUSEEVENTF_LEFTUP };
 
             SendInput(2, inputs, Marshal.SizeOf<INPUT>());
-            return CommandResult.Ok("click");
+
+            PekaLogger.Debug("InputService", $"{logName}: physical=({x},{y})");
+
+            return CommandResult.Ok(commandName, new { physicalX = x, physicalY = y, coordinateSpace = "physical" });
         }
         catch (Exception ex)
         {
-            return CommandResult.Fail("click", ex.Message);
+            PekaLogger.Error("InputService", $"{logName} failed at ({x},{y}): {ex.Message}", ex);
+            return CommandResult.Fail(commandName, ex.Message);
         }
     }
 
-    /// <summary>
-    /// 在当前鼠标位置点击
-    /// </summary>
-    public CommandResult ClickCurrent()
-    {
-        var (x, y) = GetCursorPos();
-        return Click(x, y);
-    }
-
-    /// <summary>
-    /// 右键点击
-    /// </summary>
-    public CommandResult RightClick(int x, int y)
+    private CommandResult RightClickPhysicalCore(int x, int y, string commandName, string logName)
     {
         try
         {
+            if (!_dpiContext.IsWithinScreenBounds(x, y))
+            {
+                PekaLogger.Warn("InputService",
+                    $"{logName} position ({x},{y}) is outside screen bounds");
+                return CommandResult.Fail(commandName,
+                    $"Position ({x},{y}) is outside screen bounds");
+            }
+
             SetCursorPos(x, y);
             Thread.Sleep(50);
 
@@ -142,17 +307,23 @@ public class InputService
             inputs[1].u.mi = new MOUSEINPUT { dx = 0, dy = 0, dwFlags = MOUSEEVENTF_RIGHTUP };
 
             SendInput(2, inputs, Marshal.SizeOf<INPUT>());
-            return CommandResult.Ok("right_click");
+
+            PekaLogger.Debug("InputService", $"{logName}: physical=({x},{y})");
+
+            return CommandResult.Ok(commandName, new { physicalX = x, physicalY = y, coordinateSpace = "physical" });
         }
         catch (Exception ex)
         {
-            return CommandResult.Fail("right_click", ex.Message);
+            PekaLogger.Error("InputService", $"{logName} failed at ({x},{y}): {ex.Message}", ex);
+            return CommandResult.Fail(commandName, ex.Message);
         }
     }
 
     /// <summary>
-    /// 输入文本（模拟键盘）
+    /// Types the specified text by simulating keyboard input (Unicode characters).
     /// </summary>
+    /// <param name="text">The text to type.</param>
+    /// <returns>A CommandResult indicating success or failure.</returns>
     public CommandResult TypeText(string text)
     {
         try
@@ -161,7 +332,7 @@ public class InputService
 
             foreach (char c in text)
             {
-                // 发送 Unicode 字符
+                // Send Unicode character
                 var down = new INPUT
                 {
                     type = (int)INPUT_KEYBOARD,
@@ -205,8 +376,10 @@ public class InputService
     }
 
     /// <summary>
-    /// 按下指定虚拟键码
+    /// Presses the specified virtual key code (key down followed by key up).
     /// </summary>
+    /// <param name="vkCode">The virtual key code to press.</param>
+    /// <returns>A CommandResult indicating success or failure.</returns>
     public CommandResult PressKey(short vkCode)
     {
         try
@@ -227,8 +400,10 @@ public class InputService
     }
 
     /// <summary>
-    /// 按名称按下按键 (esc/enter/tab/backspace/delete)
+    /// Presses a key by name (supports: esc/escape, enter/return, tab, backspace, delete).
     /// </summary>
+    /// <param name="keyName">The name of the key to press.</param>
+    /// <returns>A CommandResult indicating success or failure.</returns>
     public CommandResult PressKeyByName(string keyName)
     {
         var vk = keyName.ToLower() switch
@@ -248,8 +423,10 @@ public class InputService
     }
 
     /// <summary>
-    /// 执行快捷键，如 "ctrl+l", "alt+f4", "ctrl+shift+a"
+    /// Executes a hotkey combination (e.g., "ctrl+l", "alt+f4", "ctrl+shift+a").
     /// </summary>
+    /// <param name="hotkey">The hotkey string in "modifier+key" format.</param>
+    /// <returns>A CommandResult indicating success or failure.</returns>
     public CommandResult Hotkey(string hotkey)
     {
         try
@@ -286,7 +463,7 @@ public class InputService
             if (vkCodes.Count == 0)
                 return CommandResult.Fail("hotkey", "Invalid hotkey: " + hotkey);
 
-            // 按下所有修饰键，然后按下主键，然后释放
+            // Press all modifier keys, then the main key, then release modifiers in reverse
             var inputs = new List<INPUT>();
 
             foreach (var vk in vkCodes.Take(vkCodes.Count - 1))
@@ -298,21 +475,21 @@ public class InputService
                 });
             }
 
-            // 主键按下
+            // Main key press
             inputs.Add(new INPUT
             {
                 type = (int)INPUT_KEYBOARD,
                 u = new INPUT_UNION { ki = new KEYBDINPUT { wVk = (short)vkCodes.Last(), wScan = 0, dwFlags = KEYEVENTF_KEYDOWN } }
             });
 
-            // 主键释放
+            // Main key release
             inputs.Add(new INPUT
             {
                 type = (int)INPUT_KEYBOARD,
                 u = new INPUT_UNION { ki = new KEYBDINPUT { wVk = (short)vkCodes.Last(), wScan = 0, dwFlags = KEYEVENTF_KEYUP } }
             });
 
-            // 释放修饰键（反向）
+            // Release modifier keys (reverse order)
             foreach (var vk in vkCodes.Take(vkCodes.Count - 1).Reverse())
             {
                 inputs.Add(new INPUT

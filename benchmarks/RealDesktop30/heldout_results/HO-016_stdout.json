@@ -1,0 +1,88 @@
+{
+  "success": true,
+  "command": "agent",
+  "data": {
+    "task": "关闭当前窗口",
+    "success": false,
+    "steps": [
+      {
+        "step": 1,
+        "thought": "Could not parse task: 关闭当前窗口",
+        "action": "error",
+        "args": {
+          "message": "Task parsing failed. Try commands like 'click 100 200', 'type hello', 'press enter'."
+        },
+        "result": "Task parsing failed. Try commands like 'click 100 200', 'type hello', 'press enter'.",
+        "success": false,
+        "error": null
+      }
+    ],
+    "final_result": "Failed at step 1: unknown error",
+    "llm_model": "deepseek",
+    "error": null,
+    "timeout_ms": 30000,
+    "cancelled": false,
+    "timeout_triggered": false,
+    "parser_mode": "llm_error",
+    "llm_enabled": true,
+    "fallback_reason": "LLM HTTP error: Response status code does not indicate success: 401 (Authorization Required).",
+    "llm_error_code": "LLM_HTTP_ERROR",
+    "trace": {
+      "traceId": "trace_20260602_210136",
+      "task": "关闭当前窗口",
+      "startedAt": "2026-06-02T13:01:36.0362834Z",
+      "completedAt": "2026-06-02T13:01:37.1450487Z",
+      "success": false,
+      "parserMode": "llm_error",
+      "llmEnabled": true,
+      "fallbackReason": "LLM HTTP error: Response status code does not indicate success: 401 (Authorization Required).",
+      "decision": "ALLOW",
+      "riskLevel": "L0",
+      "taskRiskDecision": "ALLOW",
+      "taskRiskScore": 0,
+      "taskRiskPattern": null,
+      "planRiskDecision": "ALLOW",
+      "planRiskScore": 0,
+      "planRiskMatchedStep": null,
+      "groundingScore": 0,
+      "stepTraces": [
+        {
+          "stepIndex": 0,
+          "action": "error",
+          "args": {
+            "message": "Task parsing failed. Try commands like 'click 100 200', 'type hello', 'press enter'."
+          },
+          "thought": "Could not parse task: 关闭当前窗口",
+          "success": false,
+          "error": null,
+          "result": "Task parsing failed. Try commands like 'click 100 200', 'type hello', 'press enter'.",
+          "riskGate": null,
+          "verification": null,
+          "recovery": {
+            "strategy": "Retry",
+            "shouldRetry": true,
+            "recoveryStepCount": 1
+          },
+          "candidateRanking": null,
+          "transferDecision": null,
+          "executedAt": "2026-06-02T13:01:36.7363314Z",
+          "latencyMs": 407
+        }
+      ],
+      "error": null,
+      "cancelled": false,
+      "timeoutTriggered": false,
+      "timeoutMs": 30000,
+      "totalSteps": 1,
+      "successfulSteps": 0,
+      "failedSteps": 1,
+      "blockedSteps": 0,
+      "recoveryAttempts": 1
+    }
+  },
+  "error": null,
+  "error_code": null,
+  "hint": null,
+  "trace_id": "9d0164b0",
+  "timestamp": "2026-06-02T13:01:37.1454509Z"
+}

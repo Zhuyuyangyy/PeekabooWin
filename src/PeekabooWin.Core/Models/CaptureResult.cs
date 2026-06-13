@@ -21,4 +21,11 @@ public class CaptureResult
 
     [JsonPropertyName("error")]
     public string? Error { get; set; }
+
+    /// <summary>
+    /// The DPI scale factor at the time of capture.
+    /// A value of 1.0 means 100% scaling; 1.5 means 150% scaling, etc.
+    /// </summary>
+    [JsonPropertyName("scale_factor")]
+    public double ScaleFactor { get; set; } = 1.0;
 }

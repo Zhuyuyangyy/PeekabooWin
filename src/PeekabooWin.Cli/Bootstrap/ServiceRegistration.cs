@@ -35,7 +35,28 @@ public static class ServiceRegistration
         services.AddSingleton<SkillTransferController>();
         services.AddSingleton<TempFileManager>();
 
+        // Phase 1: DPI awareness
+        services.AddSingleton<DpiContext>();
+
+        // Phase 3: LLM Vision
+        services.AddSingleton<ILlmVisionClient>(sp =>
+        {
+            var httpClient = sp.GetRequiredService<HttpClient>();
+            var openAiClient = new OpenAiVisionClient(httpClient);
+            if (openAiClient.IsAvailable) return openAiClient;
+            return new LocalVisionFallback();
+        });
+        services.AddSingleton<PerceptionCache>();
+        services.AddSingleton<LlmGroundingService>();
+
+        // Phase 4: Perception Router
+        services.AddSingleton<PerceptionRouter>();
+
+        // Phase 6: LLM Verification
+        services.AddSingleton<LlmVerificationService>();
+
         services.AddSingleton<HttpClient>();
+        services.AddSingleton<ILlmClient, OpenAiCompatibleLlmClient>();
         services.AddSingleton<TaskParser>();
         services.AddSingleton<ActionExecutor>();
         services.AddSingleton<VacpTraceLogger>();

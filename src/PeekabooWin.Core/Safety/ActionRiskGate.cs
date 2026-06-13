@@ -1,25 +1,10 @@
+using PeekabooWin.Core.Models;
 using PeekabooWin.Core.Perception;
 
 namespace PeekabooWin.Core.Safety;
 
-/// <summary>
-/// 风险感知动作门控 — 继承 AgentShield 思路的可信桌面 Agent 核心
-/// 
-/// Risk = 0.30 × OperationRisk
-///       + 0.25 × PageRisk
-///       + 0.20 × Irreversibility
-///       + 0.15 × DataSensitivity
-///       + 0.10 × Uncertainty
-/// 
-/// Risk < 0.3  → 自动执行
-/// 0.3 ≤ R < 0.6 → 人工确认
-/// R ≥ 0.6 → 默认阻断
-/// </summary>
 public class ActionRiskGate
 {
-    /// <summary>
-    /// 敏感关键词 — 出现时提高 DataSensitivity
-    /// </summary>
     private static readonly HashSet<string> SensitiveKeywords = new(StringComparer.OrdinalIgnoreCase)
     {
         "密码", "password", "pwd",
@@ -29,15 +14,8 @@ public class ActionRiskGate
         "邮箱", "email", "mail",
         "地址", "address", "addr",
         "金额", "money", "amount", "rmb", "yuan",
-        "转账", "transfer", "payment",
-        "删除", "delete", "remove",
-        "发送", "send", "submit",
-        "取消", "cancel",
     };
 
-    /// <summary>
-    /// 高风险页面类型
-    /// </summary>
     private static readonly HashSet<string> HighRiskPageTypes = new(StringComparer.OrdinalIgnoreCase)
     {
         "bank", "支付", "payment", "finance", "金融",
@@ -46,27 +24,272 @@ public class ActionRiskGate
         "email", "邮件", "mail",
     };
 
-    /// <summary>
-    /// 高风险操作类型
-    /// </summary>
-    private static readonly HashSet<string> HighRiskOperations = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "delete", "remove", "trash",
-        "transfer", "转账", "payment", "支付",
-        "send", "发送", "submit", "提交",
-        "cancel", "取消", "close_account",
-        "exec", "run", "cmd", "powershell",
-    };
-
-    /// <summary>
-    /// 可逆操作列表
-    /// </summary>
     private static readonly HashSet<string> IrreversibleOperations = new(StringComparer.OrdinalIgnoreCase)
     {
         "delete", "remove", "trash",
         "transfer", "转账", "send", "发送",
         "format", "drop", "shutdown",
     };
+
+    private static readonly string[][] DangerousPlanSequences = new[]
+    {
+        new[] { "hotkey", "type", "press" },
+        new[] { "hotkey", "type", "click" },
+        new[] { "focus-window", "type", "press" },
+    };
+
+    private static readonly HashSet<string> DangerousInputPatterns = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "cmd", "powershell", "bash",
+        "rm ", "del ", "rmdir", "format ",
+        "rd /s", "del /s", "del /f", "del /q",
+        "shutdown", "taskkill",
+        "reg delete", "reg add",
+        "net user", "net localgroup",
+        "takeown", "icacls",
+        "winget uninstall", "appxpackage",
+        "certutil", "bitsadmin",
+        "wmic ", "mshta",
+    };
+
+    private static readonly HashSet<string> DangerousWindowTargets = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "cmd", "powershell", "terminal", "命令提示符",
+        "regedit", "注册表",
+        "taskmgr", "任务管理器",
+        "eventvwr", "事件查看器",
+        "services.msc", "服务",
+        "compmgmt", "计算机管理",
+        "diskmgmt", "磁盘管理",
+    };
+
+    private static readonly string[] DangerousTaskIntents = new[]
+    {
+        "transfer money", "wire", "move funds", "汇款", "转账", "转到", "转出", "转帐",
+        "bank transfer", "汇钱", "打款", "付款",
+        "delete system", "delete all", "bulk delete", "删除系统", "批量删除", "清空", "清理系统",
+        "send email with sensitive", "发送敏感", "send email with attachment",
+        "execute system command", "execute powershell", "execute command",
+        "run command", "run script", "run powershell",
+        "modify admin", "修改管理",
+        "delete file", "删除文件", "删文件",
+        "format drive", "format disk",
+        "shutdown", "restart", "关机", "重启",
+        "send sensitive", "发送敏感数据", "密码发",
+        "submit sensitive", "提交敏感",
+        "close account", "close my account", "注销账户", "取消订阅", "取消我的",
+        "rm -rf", "del /s", "清空回收站",
+        "取消订单", "取消账户",
+        "信用卡", "密码发给他", "密码发给",
+        "terminate", "kill process",
+    };
+
+    private static readonly string[] NonOverridableIntents = new[]
+    {
+        "信用卡", "密码发给他", "密码发给",
+        "转账", "转到", "转出", "汇款", "汇钱", "打款",
+        "wire", "move funds",
+        "rm -rf", "清空回收站", "清理系统",
+        "close account", "close my account", "注销账户",
+    };
+
+    public TaskRiskDecision EvaluateTask(string taskDescription)
+    {
+        if (string.IsNullOrWhiteSpace(taskDescription))
+            return new TaskRiskDecision { Decision = RiskLevel.Allow, RiskScore = 0, BlockReason = null };
+
+        var taskLower = taskDescription.ToLower();
+
+        foreach (var intent in DangerousTaskIntents)
+        {
+            if (taskLower.Contains(intent.ToLower()))
+            {
+                var isNonOverridable = NonOverridableIntents.Any(n => taskLower.Contains(n.ToLower()));
+
+                if (isNonOverridable)
+                {
+                    return new TaskRiskDecision
+                    {
+                        Decision = RiskLevel.Block,
+                        RiskScore = 1.0,
+                        BlockReason = $"任务包含不可覆盖的高危意图: '{intent}'",
+                        MatchedPattern = intent
+                    };
+                }
+
+                return new TaskRiskDecision
+                {
+                    Decision = RiskLevel.Block,
+                    RiskScore = 1.0,
+                    BlockReason = $"任务包含高危意图: '{intent}'",
+                    MatchedPattern = intent
+                };
+            }
+        }
+
+        if (MatchesFuzzyIntent(taskLower))
+        {
+            return new TaskRiskDecision
+            {
+                Decision = RiskLevel.Block,
+                RiskScore = 0.9,
+                BlockReason = "任务语义匹配高危意图（模糊匹配）",
+                MatchedPattern = "fuzzy"
+            };
+        }
+
+        var sensitiveHits = SensitiveKeywords.Where(k => taskLower.Contains(k.ToLower())).ToList();
+        if (sensitiveHits.Count >= 2)
+        {
+            return new TaskRiskDecision
+            {
+                Decision = RiskLevel.Confirm,
+                RiskScore = 0.5,
+                BlockReason = $"任务涉及多个敏感关键词: {string.Join(", ", sensitiveHits)}",
+                MatchedPattern = string.Join(",", sensitiveHits)
+            };
+        }
+
+        return new TaskRiskDecision { Decision = RiskLevel.Allow, RiskScore = 0, BlockReason = null };
+    }
+
+    public PlanRiskDecision EvaluatePlan(List<AgentStep> steps, string taskDescription)
+    {
+        if (steps == null || steps.Count == 0)
+            return new PlanRiskDecision { Decision = RiskLevel.Allow, RiskScore = 0, BlockReason = null };
+
+        var actions = steps.Select(s => s.Action.ToLower()).ToList();
+        var allArgs = steps.SelectMany(s => s.Args?.Values ?? Enumerable.Empty<string>()).ToList();
+        var allArgsText = string.Join(" ", allArgs).ToLower();
+
+        foreach (var input in allArgs)
+        {
+            if (string.IsNullOrEmpty(input)) continue;
+            foreach (var pattern in DangerousInputPatterns)
+            {
+                if (input.Contains(pattern, StringComparison.OrdinalIgnoreCase))
+                {
+                    return new PlanRiskDecision
+                    {
+                        Decision = RiskLevel.Block,
+                        RiskScore = 1.0,
+                        BlockReason = $"计划包含危险输入: '{pattern}' → '{input}'",
+                        MatchedStep = $"type '{input}'"
+                    };
+                }
+            }
+        }
+
+        foreach (var arg in allArgs)
+        {
+            if (string.IsNullOrEmpty(arg)) continue;
+            foreach (var target in DangerousWindowTargets)
+            {
+                if (arg.Contains(target, StringComparison.OrdinalIgnoreCase))
+                {
+                    var isSafeOpen = steps.Any(s =>
+                        s.Action.Equals("focus-window", StringComparison.OrdinalIgnoreCase) &&
+                        s.Args?.Values.Any(v => v.Contains(target, StringComparison.OrdinalIgnoreCase)) == true);
+
+                    if (isSafeOpen && steps.Count <= 2)
+                    {
+                        continue;
+                    }
+
+                    return new PlanRiskDecision
+                    {
+                        Decision = RiskLevel.Block,
+                        RiskScore = 0.9,
+                        BlockReason = $"计划目标包含系统工具: '{target}'",
+                        MatchedStep = $"focus '{target}'"
+                    };
+                }
+            }
+        }
+
+        foreach (var seq in DangerousPlanSequences)
+        {
+            if (ContainsSubsequence(actions, seq.ToList()))
+            {
+                var hasDangerousInput = allArgs.Any(a =>
+                    DangerousInputPatterns.Any(p => a.Contains(p, StringComparison.OrdinalIgnoreCase)));
+
+                var hasDangerousTarget = allArgs.Any(a =>
+                    DangerousWindowTargets.Any(t => a.Contains(t, StringComparison.OrdinalIgnoreCase)));
+
+                if (hasDangerousInput || hasDangerousTarget)
+                {
+                    return new PlanRiskDecision
+                    {
+                        Decision = RiskLevel.Block,
+                        RiskScore = 0.95,
+                        BlockReason = $"计划包含 shell 执行序列 [{string.Join("→", seq)}] 且目标危险",
+                        MatchedStep = string.Join("→", seq)
+                    };
+                }
+
+                return new PlanRiskDecision
+                {
+                    Decision = RiskLevel.Confirm,
+                    RiskScore = 0.5,
+                    BlockReason = $"计划包含 shell 启动序列 [{string.Join("→", seq)}]，需确认意图",
+                    MatchedStep = string.Join("→", seq)
+                };
+            }
+        }
+
+        var deleteSteps = steps.Where(s =>
+            s.Action.Equals("type", StringComparison.OrdinalIgnoreCase) &&
+            s.Args?.GetValueOrDefault("text")?.Contains("del", StringComparison.OrdinalIgnoreCase) == true).ToList();
+
+        if (deleteSteps.Count > 0)
+        {
+            return new PlanRiskDecision
+            {
+                Decision = RiskLevel.Block,
+                RiskScore = 0.9,
+                BlockReason = "计划包含删除命令输入",
+                MatchedStep = $"type '{deleteSteps[0].Args?["text"]}'"
+            };
+        }
+
+        return new PlanRiskDecision { Decision = RiskLevel.Allow, RiskScore = 0, BlockReason = null };
+    }
+
+    private static bool MatchesFuzzyIntent(string taskLower)
+    {
+        var fillerWords = new[] { "一下", "的", "了", "把", "给", "些", "这", "那", "在", "去", "来" };
+        var cleaned = taskLower;
+        foreach (var filler in fillerWords)
+            cleaned = cleaned.Replace(filler, "");
+
+        foreach (var intent in DangerousTaskIntents)
+        {
+            if (cleaned.Contains(intent.ToLower()))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static bool ContainsSubsequence(List<string> source, List<string> pattern)
+    {
+        if (pattern.Count > source.Count) return false;
+        for (int i = 0; i <= source.Count - pattern.Count; i++)
+        {
+            bool match = true;
+            for (int j = 0; j < pattern.Count; j++)
+            {
+                if (!source[i + j].Equals(pattern[j], StringComparison.OrdinalIgnoreCase))
+                {
+                    match = false;
+                    break;
+                }
+            }
+            if (match) return true;
+        }
+        return false;
+    }
 
     public RiskDecision Evaluate(ActionRiskContext context)
     {
@@ -91,10 +314,10 @@ public class ActionRiskGate
 
     private double ComputeOperationRisk(ActionRiskContext context)
     {
-        if (HighRiskOperations.Contains(context.ActionType)) return 1.0;
         if (context.ActionType == "click") return 0.2;
         if (context.ActionType == "type") return 0.4;
         if (context.ActionType == "hotkey") return 0.5;
+        if (context.ActionType == "press") return 0.4;
         if (context.ActionType == "scroll") return 0.1;
         return 0.3;
     }
@@ -119,17 +342,13 @@ public class ActionRiskGate
     {
         var text = (context.InputText ?? "") + " " + (context.TargetLabel ?? "");
         if (SensitiveKeywords.Any(k => text.Contains(k))) return 1.0;
-
-        // 检查是否是密码字段
         if (context.TargetElement?.Type == "password" || context.TargetElement?.Label.Contains("密码") == true)
             return 1.0;
-
         return 0.0;
     }
 
     private double ComputeUncertainty(ActionRiskContext context)
     {
-        // 定位置信度低时增加不确定性
         var grounding = context.GroundingScore;
         if (grounding < 0.5) return 0.8;
         if (grounding < 0.75) return 0.4;
@@ -180,8 +399,6 @@ public class ActionRiskGate
     {
         var reasons = new List<string>();
 
-        if (HighRiskOperations.Contains(context.ActionType))
-            reasons.Add($"高危操作类型: {context.ActionType}");
         if (HighRiskPageTypes.Any(t => (context.PageType ?? "").ToLower().Contains(t.ToLower())))
             reasons.Add($"高风险页面: {context.PageType}");
         if (IrreversibleOperations.Contains(context.ActionType))
@@ -195,9 +412,6 @@ public class ActionRiskGate
     }
 }
 
-/// <summary>
-/// 风险评估上下文
-/// </summary>
 public class ActionRiskContext
 {
     public string ActionType { get; set; } = "";
@@ -208,9 +422,22 @@ public class ActionRiskContext
     public double GroundingScore { get; set; } = 1.0;
 }
 
-/// <summary>
-/// 风险决策结果
-/// </summary>
+public class TaskRiskDecision
+{
+    public RiskLevel Decision { get; set; } = RiskLevel.Allow;
+    public double RiskScore { get; set; }
+    public string? BlockReason { get; set; }
+    public string? MatchedPattern { get; set; }
+}
+
+public class PlanRiskDecision
+{
+    public RiskLevel Decision { get; set; } = RiskLevel.Allow;
+    public double RiskScore { get; set; }
+    public string? BlockReason { get; set; }
+    public string? MatchedStep { get; set; }
+}
+
 public class RiskDecision
 {
     public RiskLevel Decision { get; set; } = RiskLevel.Allow;

@@ -2,81 +2,52 @@
   "success": true,
   "command": "agent",
   "data": {
-    "task": "transfer",
+    "task": "transfer money in banking app",
     "success": false,
-    "steps": [
-      {
-        "step": 1,
-        "thought": "Cannot parse task without LLM: transfer",
-        "action": "error",
-        "args": {
-          "message": "No MINIMAX_API_KEY set, cannot parse complex tasks. Try simpler commands like 'click 100 200' or 'type hello'."
-        },
-        "result": "No MINIMAX_API_KEY set, cannot parse complex tasks. Try simpler commands like 'click 100 200' or 'type hello'.",
-        "success": false,
-        "error": null
-      }
-    ],
-    "final_result": "Failed at step 1: unknown error",
-    "llm_model": "minimax/MiniMax-M2.7",
-    "error": null,
+    "steps": [],
+    "final_result": null,
+    "llm_model": "deepseek",
+    "error": "Task blocked: 任务包含高危意图: 'transfer money'",
     "timeout_ms": 30000,
     "cancelled": false,
     "timeout_triggered": false,
-    "parser_mode": "regex_fallback",
-    "llm_enabled": false,
-    "fallback_reason": "MINIMAX_API_KEY not set",
-    "llm_error_code": "MISSING_API_KEY",
+    "parser_mode": "llm_error",
+    "llm_enabled": true,
+    "fallback_reason": "LLM HTTP error: Response status code does not indicate success: 401 (Authorization Required).",
+    "llm_error_code": "LLM_HTTP_ERROR",
     "trace": {
-      "traceId": "trace_20260602_175743",
-      "task": "transfer",
-      "startedAt": "2026-06-02T09:57:43.5682264Z",
-      "completedAt": "2026-06-02T09:57:44.2272891Z",
+      "traceId": "trace_20260602_210337",
+      "task": "transfer money in banking app",
+      "startedAt": "2026-06-02T13:03:37.6270693Z",
+      "completedAt": "2026-06-02T13:03:38.0024506Z",
       "success": false,
-      "parserMode": "regex_fallback",
-      "llmEnabled": false,
-      "fallbackReason": "MINIMAX_API_KEY not set",
-      "decision": "ALLOW",
-      "riskLevel": "L0",
+      "parserMode": "llm_error",
+      "llmEnabled": true,
+      "fallbackReason": "LLM HTTP error: Response status code does not indicate success: 401 (Authorization Required).",
+      "decision": "BLOCK",
+      "riskLevel": "L2",
+      "taskRiskDecision": "BLOCK",
+      "taskRiskScore": 1,
+      "taskRiskPattern": "transfer money",
+      "planRiskDecision": null,
+      "planRiskScore": 0,
+      "planRiskMatchedStep": null,
       "groundingScore": 0,
-      "stepTraces": [
-        {
-          "stepIndex": 0,
-          "action": "error",
-          "args": {
-            "message": "No MINIMAX_API_KEY set, cannot parse complex tasks. Try simpler commands like 'click 100 200' or 'type hello'."
-          },
-          "thought": "Cannot parse task without LLM: transfer",
-          "success": false,
-          "error": null,
-          "result": "No MINIMAX_API_KEY set, cannot parse complex tasks. Try simpler commands like 'click 100 200' or 'type hello'.",
-          "riskGate": null,
-          "verification": null,
-          "recovery": {
-            "strategy": "Retry",
-            "shouldRetry": true,
-            "recoveryStepCount": 1
-          },
-          "candidateRanking": null,
-          "transferDecision": null,
-          "executedAt": "2026-06-02T09:57:43.5855234Z",
-          "latencyMs": 640
-        }
-      ],
+      "stepTraces": [],
       "error": null,
       "cancelled": false,
       "timeoutTriggered": false,
       "timeoutMs": 30000,
-      "totalSteps": 1,
+      "totalSteps": 0,
       "successfulSteps": 0,
-      "failedSteps": 1,
+      "failedSteps": 0,
       "blockedSteps": 0,
-      "recoveryAttempts": 1
+      "recoveryAttempts": 0
     }
   },
   "error": null,
   "error_code": null,
   "hint": null,
-  "trace_id": "ccb3e3be",
-  "timestamp": "2026-06-02T09:57:44.2279343Z"
+  "trace_id": "73748b91",
+  "timestamp": "2026-06-02T13:03:38.0027925Z"
 }

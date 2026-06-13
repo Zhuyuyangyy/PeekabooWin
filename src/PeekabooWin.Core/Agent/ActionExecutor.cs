@@ -2,11 +2,13 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using System.Windows.Automation;
 using PeekabooWin.Core.Capture;
 using PeekabooWin.Core.Infrastructure;
 using PeekabooWin.Core.Input;
 using PeekabooWin.Core.Models;
 using PeekabooWin.Core.Ocr;
+using PeekabooWin.Core.Perception;
 using PeekabooWin.Core.UIAutomation;
 using PeekabooWin.Core.Windows;
 
@@ -23,6 +25,7 @@ public class ActionExecutor
     private readonly OcrService _ocrService;
     private readonly UIAutomationService _uiaService;
     private readonly TempFileManager _tempFiles;
+    private readonly PerceptionRouter _perceptionRouter;
 
     public ActionExecutor(
         WindowService windowService,
@@ -30,7 +33,8 @@ public class ActionExecutor
         InputService inputService,
         OcrService ocrService,
         UIAutomationService uiaService,
-        TempFileManager tempFiles)
+        TempFileManager tempFiles,
+        PerceptionRouter perceptionRouter)
     {
         _windowService = windowService;
         _captureService = captureService;
@@ -38,6 +42,7 @@ public class ActionExecutor
         _ocrService = ocrService;
         _uiaService = uiaService;
         _tempFiles = tempFiles;
+        _perceptionRouter = perceptionRouter;
     }
 
     public async Task<(bool success, string result)> ExecuteActionAsync(string action, Dictionary<string, string> args, CancellationToken cancellationToken = default)
@@ -50,6 +55,14 @@ public class ActionExecutor
             {
                 var x = int.Parse(args["x"]);
                 var y = int.Parse(args["y"]);
+
+                // Click coordinates are physical screen pixels.
+                var (screenWidth, screenHeight) = DpiContext.Default.GetPhysicalScreenBounds();
+                if (x < 0 || y < 0 || x >= screenWidth || y >= screenHeight)
+                {
+                    return (false, $"Click coordinates ({x}, {y}) are outside screen bounds ({screenWidth}x{screenHeight})");
+                }
+
                 _inputService.Click(x, y);
                 return (true, $"Clicked at ({x}, {y})");
             }
@@ -62,10 +75,13 @@ public class ActionExecutor
                 var win = _windowService.FindWindow(window);
                 if (win == null)
                     return (false, $"Window not found: {window}");
-                var absX = win.Rect.X + relX;
-                var absY = win.Rect.Y + relY;
+
+                // WindowService.Rect uses LOGICAL coords; InputService.Click expects PHYSICAL pixels.
+                double scale = DpiContext.Default.GetScaleFactor(win.HandleIntPtr);
+                var absX = (int)Math.Round(win.Rect.X * scale) + (int)Math.Round(relX * scale);
+                var absY = (int)Math.Round(win.Rect.Y * scale) + (int)Math.Round(relY * scale);
                 _inputService.Click(absX, absY);
-                return (true, $"Clicked rel({relX}, {relY}) → abs({absX}, {absY}) in window '{win.Title}'");
+                return (true, $"Clicked rel({relX}, {relY}) → abs({absX}, {absY}) in window '{win.Title}' (scale={scale:F2})");
             }
 
             case "is-focused":
@@ -89,11 +105,13 @@ public class ActionExecutor
                 var outPath = _tempFiles.CreateTempPath("ocr_find");
 
                 CaptureResult cap;
+                double dpiScale = 1.0;
                 if (!string.IsNullOrEmpty(window))
                 {
                     var win = _windowService.FindWindow(window);
                     if (win == null) return (false, $"Window not found: {window}");
                     cap = _captureService.CaptureWindow(win.Handle.ToString(), outPath);
+                    dpiScale = cap.ScaleFactor > 0 ? cap.ScaleFactor : DpiContext.Default.GetScaleFactor(win.HandleIntPtr);
                 }
                 else
                 {
@@ -109,6 +127,9 @@ public class ActionExecutor
                 if (center == null)
                     return (false, $"Text '{text}' not found. Recognized: {ocrResult.Text.Substring(0, Math.Min(100, ocrResult.Text.Length))}");
 
+                // OCR returns physical pixel coords relative to the screenshot image.
+                // For window captures, add the window's PHYSICAL position on screen.
+                // WindowService.Rect uses LOGICAL (DPI-virtualized) coords, so scale by DPI.
                 int screenX = center.Value.x;
                 int screenY = center.Value.y;
                 if (!string.IsNullOrEmpty(window))
@@ -116,13 +137,13 @@ public class ActionExecutor
                     var win = _windowService.FindWindow(window);
                     if (win != null)
                     {
-                        screenX += win.Rect.X;
-                        screenY += win.Rect.Y;
+                        screenX += (int)Math.Round(win.Rect.X * dpiScale);
+                        screenY += (int)Math.Round(win.Rect.Y * dpiScale);
                     }
                 }
 
                 _tempFiles.CleanupFile(outPath);
-                return (true, $"Found '{text}' at screen({screenX}, {screenY}) [window-relative: ({center.Value.x}, {center.Value.y})]");
+                return (true, $"Found '{text}' at screen({screenX}, {screenY}) [image-relative: ({center.Value.x}, {center.Value.y}), dpi_scale={dpiScale:F2}]");
             }
 
             case "ocr-click":
@@ -130,44 +151,39 @@ public class ActionExecutor
                 cancellationToken.ThrowIfCancellationRequested();
                 var window = args.GetValueOrDefault("window");
                 var text = args["text"];
-                var outPath = _tempFiles.CreateTempPath("ocr_click");
 
-                CaptureResult cap;
-                if (!string.IsNullOrEmpty(window))
+                // Use PerceptionRouter (UIA -> LLM -> OCR fallback pipeline)
+                var perceptionResult = await _perceptionRouter.GroundElementAsync(window, text, cancellationToken);
+
+                if (perceptionResult.Element == null || !perceptionResult.IsConfident)
                 {
-                    var win = _windowService.FindWindow(window);
-                    if (win == null) return (false, $"Window not found: {window}");
-                    cap = _captureService.CaptureWindow(win.Handle.ToString(), outPath);
+                    return (false, $"Text '{text}' not found via perception router. " +
+                        $"Source: {perceptionResult.Source}, Reason: {perceptionResult.FallbackReason ?? "unknown"}");
                 }
-                else
+
+                PekaLogger.Info("ActionExecutor",
+                    $"ocr-click: found '{text}' via {perceptionResult.Source} " +
+                    $"(confidence={perceptionResult.Confidence:F2}, latency={perceptionResult.LatencyMs:F0}ms)");
+
+                var groundedEl = perceptionResult.Element;
+
+                // Use preferred click strategy from grounded element
+                if (groundedEl.PreferredClickStrategy == ClickStrategy.UIA_Invoke && groundedEl.RawUiaElement != null)
                 {
-                    cap = _captureService.CaptureScreen(outPath);
-                }
-                if (!cap.Success) return (false, $"Screenshot failed: {cap.Error}");
-
-                var ocrResult = await _ocrService.RecognizeImageAsync(outPath);
-                if (!string.IsNullOrEmpty(ocrResult.Error))
-                    return (false, $"OCR error: {ocrResult.Error}");
-
-                var center = _ocrService.FindWordCenter(ocrResult, text);
-                if (center == null)
-                    return (false, $"Text '{text}' not found on screen");
-
-                int screenX = center.Value.x;
-                int screenY = center.Value.y;
-                if (!string.IsNullOrEmpty(window))
-                {
-                    var win = _windowService.FindWindow(window);
-                    if (win != null)
+                    var invokeResult = _uiaService.InvokeElement(groundedEl.RawUiaElement);
+                    if (invokeResult.Success)
                     {
-                        screenX += win.Rect.X;
-                        screenY += win.Rect.Y;
+                        return (true, $"OCR-click '{text}' via {invokeResult.Method} " +
+                            $"(source={perceptionResult.Source}, confidence={perceptionResult.Confidence:F2})");
                     }
                 }
 
-                _inputService.Click(screenX, screenY);
-                _tempFiles.CleanupFile(outPath);
-                return (true, $"OCR-click '{text}' at screen({screenX}, {screenY})");
+                // Fallback to coordinate click using the grounded element's click point
+                var clickX = (int)groundedEl.ClickPoint.X;
+                var clickY = (int)groundedEl.ClickPoint.Y;
+                _inputService.Click(clickX, clickY);
+                return (true, $"OCR-click '{text}' at ({clickX}, {clickY}) " +
+                    $"(source={perceptionResult.Source}, confidence={perceptionResult.Confidence:F2})");
             }
 
             case "type":
@@ -249,9 +265,12 @@ public class ActionExecutor
                 if (!string.IsNullOrEmpty(name))
                     result = _uiaService.FindByName(window, name);
                 else if (!string.IsNullOrEmpty(controlType))
-                    result = _uiaService.FindByControlType(window, controlType).Matches.Count > 0
-                        ? new UIAFindResult { Success = true, Matches = _uiaService.FindByControlType(window, controlType).Matches }
-                        : new UIAFindResult { Success = false, Error = "Not found" };
+                {
+                    // Fixed: removed duplicate FindByControlType call (was called twice on lines 252-253)
+                    result = _uiaService.FindByControlType(window, controlType);
+                    if (result.Matches.Count == 0)
+                        result = new UIAFindResult { Success = false, Error = "Not found" };
+                }
                 else if (!string.IsNullOrEmpty(autoId))
                     result = _uiaService.FindByAutomationId(window, autoId);
                 else
@@ -266,52 +285,97 @@ public class ActionExecutor
                 var window = args["window"];
                 var name = args["name"];
 
-                var findResult = _uiaService.FindByName(window, name);
-                if (!findResult.Success || findResult.Count == 0)
-                    return (false, $"Element not found: {name}");
+                // Use PerceptionRouter for element grounding (UIA -> LLM -> OCR pipeline)
+                var perceptionResult = await _perceptionRouter.GroundElementAsync(window, name, cancellationToken);
 
-                var el = findResult.Matches[0];
-                if (el.BoundingBox != null)
+                if (perceptionResult.Element == null || !perceptionResult.IsConfident)
                 {
-                    var cx = (int)(el.BoundingBox.X + el.BoundingBox.Width / 2);
-                    var cy = (int)(el.BoundingBox.Y + el.BoundingBox.Height / 2);
-                    _inputService.Click(cx, cy);
-                    return (true, $"Clicked element '{name}' at ({cx}, {cy})");
+                    return (false, $"Element not found: {name}. " +
+                        $"Source: {perceptionResult.Source}, Reason: {perceptionResult.FallbackReason ?? "unknown"}");
                 }
-                return (false, $"Element '{name}' has no bounding box");
+
+                PekaLogger.Info("ActionExecutor",
+                    $"click-element: found '{name}' via {perceptionResult.Source} " +
+                    $"(confidence={perceptionResult.Confidence:F2}, latency={perceptionResult.LatencyMs:F0}ms)");
+
+                var groundedEl = perceptionResult.Element;
+
+                // If UIA_Invoke strategy and raw element available, use InvokePattern directly
+                if (groundedEl.PreferredClickStrategy == ClickStrategy.UIA_Invoke && groundedEl.RawUiaElement != null)
+                {
+                    var invokeResult = _uiaService.InvokeElement(groundedEl.RawUiaElement);
+                    if (invokeResult.Success)
+                    {
+                        return (true, $"Clicked element '{name}' via {invokeResult.Method} " +
+                            $"(source={perceptionResult.Source}, confidence={perceptionResult.Confidence:F2})");
+                    }
+                    // If invoke failed, fall through to coordinate click
+                    PekaLogger.Warn("ActionExecutor",
+                        $"UIA_Invoke failed for '{name}' ({invokeResult.ErrorDetail}), falling back to coordinate click");
+                }
+
+                // Coordinate click using the grounded element's click point
+                var clickX = (int)groundedEl.ClickPoint.X;
+                var clickY = (int)groundedEl.ClickPoint.Y;
+                _inputService.Click(clickX, clickY);
+                return (true, $"Clicked element '{name}' at ({clickX}, {clickY}) " +
+                    $"(source={perceptionResult.Source}, confidence={perceptionResult.Confidence:F2})");
             }
 
             case "click-element-guess":
             {
-                var windows = _windowService.ListWindows(null);
-                var activeWin = windows.OrderByDescending(w => w.Handle).FirstOrDefault();
+                // Get the actual foreground window via P/Invoke
+                var foregroundHwnd = GetForegroundWindow();
+                var allWindows = _windowService.ListWindows(null);
+                var activeWin = allWindows.FirstOrDefault(w => w.Handle == foregroundHwnd.ToInt64());
+
                 if (activeWin == null)
                     return (false, "No active window found");
 
                 var element = args["element"];
-                var findResult = _uiaService.FindByName(activeWin.Title, element);
-                if (findResult.Success && findResult.Count > 0)
+
+                // Use PerceptionRouter with the active window title for better element finding
+                var perceptionResult = await _perceptionRouter.GroundElementAsync(activeWin.Title, element, cancellationToken);
+
+                if (perceptionResult.Element != null && perceptionResult.IsConfident)
                 {
-                    var el = findResult.Matches[0];
-                    if (el.BoundingBox != null)
+                    PekaLogger.Info("ActionExecutor",
+                        $"click-element-guess: found '{element}' via {perceptionResult.Source} " +
+                        $"in window '{activeWin.Title}' (confidence={perceptionResult.Confidence:F2})");
+
+                    var groundedEl = perceptionResult.Element;
+
+                    // Use preferred click strategy
+                    if (groundedEl.PreferredClickStrategy == ClickStrategy.UIA_Invoke && groundedEl.RawUiaElement != null)
                     {
-                        var cx = (int)(el.BoundingBox.X + el.BoundingBox.Width / 2);
-                        var cy = (int)(el.BoundingBox.Y + el.BoundingBox.Height / 2);
-                        _inputService.Click(cx, cy);
-                        return (true, $"Clicked '{element}' at ({cx}, {cy}) in '{activeWin.Title}'");
+                        var invokeResult = _uiaService.InvokeElement(groundedEl.RawUiaElement);
+                        if (invokeResult.Success)
+                        {
+                            return (true, $"Clicked '{element}' via {invokeResult.Method} in '{activeWin.Title}' " +
+                                $"(source={perceptionResult.Source}, confidence={perceptionResult.Confidence:F2})");
+                        }
                     }
+
+                    var clickX = (int)groundedEl.ClickPoint.X;
+                    var clickY = (int)groundedEl.ClickPoint.Y;
+                    _inputService.Click(clickX, clickY);
+                    return (true, $"Clicked '{element}' at ({clickX}, {clickY}) in '{activeWin.Title}' " +
+                        $"(source={perceptionResult.Source}, confidence={perceptionResult.Confidence:F2})");
                 }
 
-                foreach (var win in windows.Where(w => w.Title.Contains(element)))
+                // Fallback: search across all windows using PerceptionRouter
+                foreach (var win in allWindows.Where(w => w.Handle != activeWin.Handle))
                 {
-                    var r = _uiaService.FindByName(win.Title, element);
-                    if (r.Success && r.Count > 0)
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var fallbackResult = await _perceptionRouter.GroundElementAsync(win.Title, element, cancellationToken);
+                    if (fallbackResult.Element != null && fallbackResult.IsConfident)
                     {
-                        var el = r.Matches[0];
-                        var cx = (int)(el.BoundingBox!.X + el.BoundingBox.Width / 2);
-                        var cy = (int)(el.BoundingBox.Y + el.BoundingBox.Height / 2);
-                        _inputService.Click(cx, cy);
-                        return (true, $"Clicked '{element}' at ({cx}, {cy})");
+                        var groundedEl = fallbackResult.Element;
+                        var clickX = (int)groundedEl.ClickPoint.X;
+                        var clickY = (int)groundedEl.ClickPoint.Y;
+                        _inputService.Click(clickX, clickY);
+                        return (true, $"Clicked '{element}' at ({clickX}, {clickY}) in '{win.Title}' " +
+                            $"(source={fallbackResult.Source}, confidence={fallbackResult.Confidence:F2})");
                     }
                 }
 
@@ -362,6 +426,72 @@ public class ActionExecutor
                     return (false, $"OCR failed: {result.Error}");
 
                 return (true, $"Recognized {result.Words.Count} words: {result.Text.Substring(0, Math.Min(200, result.Text.Length))}");
+            }
+
+            case "ocr-scan":
+            {
+                // Scan a window or full screen for ALL visible text elements with physical screen coordinates.
+                // Works on ANY app type (Electron, UWP, Chromium, Win32) since it uses screenshot + OCR.
+                cancellationToken.ThrowIfCancellationRequested();
+                var window = args.GetValueOrDefault("window");
+                var outPath = _tempFiles.CreateTempPath("ocr_scan");
+
+                CaptureResult cap;
+                double dpiScale = 1.0;
+                int winPhysX = 0, winPhysY = 0;
+
+                if (!string.IsNullOrEmpty(window))
+                {
+                    var win = _windowService.FindWindow(window);
+                    if (win == null) return (false, $"Window not found: {window}");
+                    cap = _captureService.CaptureWindow(win.Handle.ToString(), outPath);
+                    dpiScale = cap.ScaleFactor > 0 ? cap.ScaleFactor : DpiContext.Default.GetScaleFactor(win.HandleIntPtr);
+                    winPhysX = (int)Math.Round(win.Rect.X * dpiScale);
+                    winPhysY = (int)Math.Round(win.Rect.Y * dpiScale);
+                }
+                else
+                {
+                    cap = _captureService.CaptureScreen(outPath);
+                }
+
+                if (!cap.Success) return (false, $"Screenshot failed: {cap.Error}");
+
+                var ocrResult = await _ocrService.RecognizeImageAsync(outPath);
+                _tempFiles.CleanupFile(outPath);
+
+                if (!string.IsNullOrEmpty(ocrResult.Error))
+                    return (false, $"OCR error: {ocrResult.Error}");
+
+                var elements = new List<object>();
+                foreach (var word in ocrResult.Words.Where(w => w.BoundingBox != null))
+                {
+                    int physX = (int)word.BoundingBox!.X + winPhysX;
+                    int physY = (int)word.BoundingBox.Y + winPhysY;
+                    int physW = (int)word.BoundingBox.Width;
+                    int physH = (int)word.BoundingBox.Height;
+
+                    elements.Add(new
+                    {
+                        text = word.Text,
+                        screen_x = physX,
+                        screen_y = physY,
+                        screen_cx = physX + physW / 2,
+                        screen_cy = physY + physH / 2,
+                        width = physW,
+                        height = physH
+                    });
+                }
+
+                var scanResult = new
+                {
+                    window = window ?? "full_screen",
+                    dpi_scale = dpiScale,
+                    element_count = elements.Count,
+                    total_text = ocrResult.Text.Length > 500 ? ocrResult.Text[..500] + "..." : ocrResult.Text,
+                    elements
+                };
+
+                return (true, JsonSerializer.Serialize(scanResult, new JsonSerializerOptions { WriteIndented = true }));
             }
 
             case "error":

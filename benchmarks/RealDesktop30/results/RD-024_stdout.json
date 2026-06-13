@@ -2,54 +2,60 @@
   "success": true,
   "command": "agent",
   "data": {
-    "task": "OCR",
+    "task": "OCR text not found then use fallback strategy",
     "success": false,
     "steps": [
       {
         "step": 1,
-        "thought": "Cannot parse task without LLM: OCR",
-        "action": "error",
+        "thought": "OCR screenshot",
+        "action": "ocr",
         "args": {
-          "message": "No MINIMAX_API_KEY set, cannot parse complex tasks. Try simpler commands like 'click 100 200' or 'type hello'."
+          "out": "ocr_20260602_210336.png"
         },
-        "result": "No MINIMAX_API_KEY set, cannot parse complex tasks. Try simpler commands like 'click 100 200' or 'type hello'.",
+        "result": "OCR failed: 参数错误。\r\n\r\n指定的路径(ocr_20260602_210336.png)不是绝对路径，而且不允许使用相对路径。",
         "success": false,
         "error": null
       }
     ],
     "final_result": "Failed at step 1: unknown error",
-    "llm_model": "minimax/MiniMax-M2.7",
+    "llm_model": "deepseek",
     "error": null,
     "timeout_ms": 30000,
     "cancelled": false,
     "timeout_triggered": false,
-    "parser_mode": "regex_fallback",
-    "llm_enabled": false,
-    "fallback_reason": "MINIMAX_API_KEY not set",
-    "llm_error_code": "MISSING_API_KEY",
+    "parser_mode": "rule_based",
+    "llm_enabled": true,
+    "fallback_reason": "",
+    "llm_error_code": "",
     "trace": {
-      "traceId": "trace_20260602_175741",
-      "task": "OCR",
-      "startedAt": "2026-06-02T09:57:41.5183089Z",
-      "completedAt": "2026-06-02T09:57:42.1964149Z",
+      "traceId": "trace_20260602_210336",
+      "task": "OCR text not found then use fallback strategy",
+      "startedAt": "2026-06-02T13:03:36.5777146Z",
+      "completedAt": "2026-06-02T13:03:37.2289237Z",
       "success": false,
-      "parserMode": "regex_fallback",
-      "llmEnabled": false,
-      "fallbackReason": "MINIMAX_API_KEY not set",
+      "parserMode": "rule_based",
+      "llmEnabled": true,
+      "fallbackReason": "",
       "decision": "ALLOW",
       "riskLevel": "L0",
+      "taskRiskDecision": "ALLOW",
+      "taskRiskScore": 0,
+      "taskRiskPattern": null,
+      "planRiskDecision": "ALLOW",
+      "planRiskScore": 0,
+      "planRiskMatchedStep": null,
       "groundingScore": 0,
       "stepTraces": [
         {
           "stepIndex": 0,
-          "action": "error",
+          "action": "ocr",
           "args": {
-            "message": "No MINIMAX_API_KEY set, cannot parse complex tasks. Try simpler commands like 'click 100 200' or 'type hello'."
+            "out": "ocr_20260602_210336.png"
           },
-          "thought": "Cannot parse task without LLM: OCR",
+          "thought": "OCR screenshot",
           "success": false,
           "error": null,
-          "result": "No MINIMAX_API_KEY set, cannot parse complex tasks. Try simpler commands like 'click 100 200' or 'type hello'.",
+          "result": "OCR failed: 参数错误。\r\n\r\n指定的路径(ocr_20260602_210336.png)不是绝对路径，而且不允许使用相对路径。",
           "riskGate": null,
           "verification": null,
           "recovery": {
@@ -59,8 +65,8 @@
           },
           "candidateRanking": null,
           "transferDecision": null,
-          "executedAt": "2026-06-02T09:57:41.5351126Z",
-          "latencyMs": 660
+          "executedAt": "2026-06-02T13:03:36.5897496Z",
+          "latencyMs": 638
         }
       ],
       "error": null,
@@ -77,6 +83,6 @@
   "error": null,
   "error_code": null,
   "hint": null,
-  "trace_id": "8d62346f",
-  "timestamp": "2026-06-02T09:57:42.1968189Z"
+  "trace_id": "3148a3e5",
+  "timestamp": "2026-06-02T13:03:37.2294062Z"
 }

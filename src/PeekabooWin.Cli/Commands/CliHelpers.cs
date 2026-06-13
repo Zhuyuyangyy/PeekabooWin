@@ -21,8 +21,17 @@ public static class CliHelpers
             if (args[i].Equals(name, StringComparison.OrdinalIgnoreCase) ||
                 args[i].Equals(shortName, StringComparison.OrdinalIgnoreCase))
             {
-                if (i + 1 < args.Length && !args[i + 1].StartsWith('-'))
-                    return args[i + 1];
+                if (i + 1 < args.Length && !args[i + 1].StartsWith("--"))
+                {
+                    var parts = new List<string>();
+                    int j = i + 1;
+                    while (j < args.Length && !args[j].StartsWith("--"))
+                    {
+                        parts.Add(args[j]);
+                        j++;
+                    }
+                    return string.Join(" ", parts);
+                }
             }
         }
         return null;

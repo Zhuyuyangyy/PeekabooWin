@@ -2,54 +2,60 @@
   "success": true,
   "command": "agent",
   "data": {
-    "task": "fill",
+    "task": "fill registration form with email",
     "success": false,
     "steps": [
       {
         "step": 1,
-        "thought": "Cannot parse task without LLM: fill",
+        "thought": "Could not parse task: fill registration form with email",
         "action": "error",
         "args": {
-          "message": "No MINIMAX_API_KEY set, cannot parse complex tasks. Try simpler commands like 'click 100 200' or 'type hello'."
+          "message": "Task parsing failed. Try commands like 'click 100 200', 'type hello', 'press enter'."
         },
-        "result": "No MINIMAX_API_KEY set, cannot parse complex tasks. Try simpler commands like 'click 100 200' or 'type hello'.",
+        "result": "Task parsing failed. Try commands like 'click 100 200', 'type hello', 'press enter'.",
         "success": false,
         "error": null
       }
     ],
     "final_result": "Failed at step 1: unknown error",
-    "llm_model": "minimax/MiniMax-M2.7",
+    "llm_model": "deepseek",
     "error": null,
     "timeout_ms": 30000,
     "cancelled": false,
     "timeout_triggered": false,
-    "parser_mode": "regex_fallback",
-    "llm_enabled": false,
-    "fallback_reason": "MINIMAX_API_KEY not set",
-    "llm_error_code": "MISSING_API_KEY",
+    "parser_mode": "llm_error",
+    "llm_enabled": true,
+    "fallback_reason": "LLM HTTP error: Response status code does not indicate success: 401 (Authorization Required).",
+    "llm_error_code": "LLM_HTTP_ERROR",
     "trace": {
-      "traceId": "trace_20260602_175707",
-      "task": "fill",
-      "startedAt": "2026-06-02T09:57:07.4168023Z",
-      "completedAt": "2026-06-02T09:57:08.0677265Z",
+      "traceId": "trace_20260602_210228",
+      "task": "fill registration form with email",
+      "startedAt": "2026-06-02T13:02:28.3942406Z",
+      "completedAt": "2026-06-02T13:02:29.1305974Z",
       "success": false,
-      "parserMode": "regex_fallback",
-      "llmEnabled": false,
-      "fallbackReason": "MINIMAX_API_KEY not set",
+      "parserMode": "llm_error",
+      "llmEnabled": true,
+      "fallbackReason": "LLM HTTP error: Response status code does not indicate success: 401 (Authorization Required).",
       "decision": "ALLOW",
       "riskLevel": "L0",
+      "taskRiskDecision": "CONFIRM",
+      "taskRiskScore": 0.5,
+      "taskRiskPattern": "email,mail",
+      "planRiskDecision": "ALLOW",
+      "planRiskScore": 0,
+      "planRiskMatchedStep": null,
       "groundingScore": 0,
       "stepTraces": [
         {
           "stepIndex": 0,
           "action": "error",
           "args": {
-            "message": "No MINIMAX_API_KEY set, cannot parse complex tasks. Try simpler commands like 'click 100 200' or 'type hello'."
+            "message": "Task parsing failed. Try commands like 'click 100 200', 'type hello', 'press enter'."
           },
-          "thought": "Cannot parse task without LLM: fill",
+          "thought": "Could not parse task: fill registration form with email",
           "success": false,
           "error": null,
-          "result": "No MINIMAX_API_KEY set, cannot parse complex tasks. Try simpler commands like 'click 100 200' or 'type hello'.",
+          "result": "Task parsing failed. Try commands like 'click 100 200', 'type hello', 'press enter'.",
           "riskGate": null,
           "verification": null,
           "recovery": {
@@ -59,8 +65,8 @@
           },
           "candidateRanking": null,
           "transferDecision": null,
-          "executedAt": "2026-06-02T09:57:07.437057Z",
-          "latencyMs": 629
+          "executedAt": "2026-06-02T13:02:28.7784475Z",
+          "latencyMs": 351
         }
       ],
       "error": null,
@@ -77,6 +83,6 @@
   "error": null,
   "error_code": null,
   "hint": null,
-  "trace_id": "73deee8b",
-  "timestamp": "2026-06-02T09:57:08.0684402Z"
+  "trace_id": "94884648",
+  "timestamp": "2026-06-02T13:02:29.1310152Z"
 }

@@ -1,6 +1,4 @@
 using System.Linq;
-using System.Net.Http;
-using System.Text;
 using System.Text.Json;
 using PeekabooWin.Core.Infrastructure;
 using PeekabooWin.Core.Models;
@@ -9,10 +7,7 @@ namespace PeekabooWin.Core.Agent;
 
 public class TaskParser
 {
-    private readonly HttpClient _httpClient;
-
-    private const string MINIMAX_API = "https://api.minimax.chat/v1/chat/completions";
-    private const string MINIMAX_MODEL = "MiniMax-M2.7";
+    private readonly ILlmClient? _llmClient;
 
     public string LastFallbackReason { get; private set; } = "";
     public bool LastLlmEnabled { get; private set; } = true;
@@ -38,9 +33,9 @@ public class TaskParser
         new ToolDescriptor { Name = "ocr", Description = "Recognize text in a screenshot. Can search for text and click.", Parameters = new() { ["window"] = "optional window title keyword", ["text"] = "optional text to search for and click" } },
     };
 
-    public TaskParser(HttpClient httpClient)
+    public TaskParser(ILlmClient? llmClient = null)
     {
-        _httpClient = httpClient;
+        _llmClient = llmClient;
     }
 
     public async Task<List<AgentStep>> ParseTaskAsync(string task, string? context = null, CancellationToken cancellationToken = default)
@@ -331,14 +326,17 @@ Output: [
         var userPrompt = $@"Task: ""{task}"""
             + (string.IsNullOrEmpty(context) ? "" : $"\nContext: {context}");
 
-        var apiKey = Environment.GetEnvironmentVariable("MINIMAX_API_KEY");
-        if (string.IsNullOrEmpty(apiKey))
+        var apiKey = Environment.GetEnvironmentVariable("LLM_API_KEY")
+            ?? Environment.GetEnvironmentVariable("DEEPSEEK_API_KEY")
+            ?? Environment.GetEnvironmentVariable("MINIMAX_API_KEY");
+
+        if (_llmClient == null || !_llmClient.IsAvailable)
         {
             LastParserMode = "regex_fallback";
-            LastFallbackReason = "MINIMAX_API_KEY not set";
+            LastFallbackReason = string.IsNullOrEmpty(apiKey) ? "LLM_API_KEY not set" : "LLM client not available";
             LastLlmEnabled = false;
             LastLlmErrorCode = "MISSING_API_KEY";
-            PekaLogger.Warn("TaskParser", "LLM fallback: MINIMAX_API_KEY not set, using regex-only parsing");
+            PekaLogger.Warn("TaskParser", $"LLM fallback: {LastFallbackReason}, using regex-only parsing");
 
             return new List<AgentStep>
             {
@@ -346,14 +344,14 @@ Output: [
                 {
                     Thought = $"Cannot parse task without LLM: {task}",
                     Action = "error",
-                    Args = new() { ["message"] = "No MINIMAX_API_KEY set, cannot parse complex tasks. Try simpler commands like 'click 100 200' or 'type hello'." }
+                    Args = new() { ["message"] = "No LLM API key set, cannot parse complex tasks. Try simpler commands like 'click 100 200' or 'type hello'." }
                 }
             };
         }
 
         try
         {
-            var response = await CallMiniMaxAsync(systemPrompt, userPrompt, apiKey, cancellationToken);
+            var response = await _llmClient.ChatAsync(systemPrompt, userPrompt, cancellationToken);
             var steps = ParseStepsFromLLMResponse(response);
             if (steps.Count > 0)
             {
@@ -417,36 +415,6 @@ Output: [
         {
             return new List<AgentStep>();
         }
-    }
-
-    private async Task<string> CallMiniMaxAsync(string systemPrompt, string userPrompt, string apiKey, CancellationToken cancellationToken = default)
-    {
-        var requestBody = new
-        {
-            model = MINIMAX_MODEL,
-            messages = new[]
-            {
-                new { role = "system", content = systemPrompt },
-                new { role = "user", content = userPrompt }
-            },
-            temperature = 0.1,
-            max_tokens = 1024
-        };
-
-        var json = JsonSerializer.Serialize(requestBody);
-        var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-        var request = new HttpRequestMessage(HttpMethod.Post, MINIMAX_API);
-        request.Headers.Add("Authorization", $"Bearer {apiKey}");
-        request.Content = content;
-
-        var response = await _httpClient.SendAsync(request, cancellationToken);
-        response.EnsureSuccessStatusCode();
-
-        var responseJson = await response.Content.ReadAsStringAsync(cancellationToken);
-        var responseObj = JsonSerializer.Deserialize<JsonElement>(responseJson);
-
-        return responseObj.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString() ?? "[]";
     }
 
     private static string ExtractQuotedText(string text)

@@ -26,6 +26,21 @@ public class OcrCommandHandler : ICommandHandler
         _tempFiles = tempFiles;
     }
 
+    /// <summary>
+    /// Helper: get the physical screen origin of a window (scaling logical coords by DPI).
+    /// </summary>
+    private (int physX, int physY, double scale) GetWindowPhysicalOrigin(WindowInfo win)
+    {
+        double scale = _captureService.GetType().GetProperty("DpiContext") != null
+            ? 1.0 // fallback
+            : DpiContext.Default.GetScaleFactor(win.HandleIntPtr);
+        // Use DpiContext directly since CaptureService's DpiContext is private
+        scale = DpiContext.Default.GetScaleFactor(win.HandleIntPtr);
+        int physX = (int)Math.Round(win.Rect.X * scale);
+        int physY = (int)Math.Round(win.Rect.Y * scale);
+        return (physX, physY, scale);
+    }
+
     public async Task<int> ExecuteAsync(string[] args)
     {
         var command = args[0].ToLower();
@@ -34,6 +49,7 @@ public class OcrCommandHandler : ICommandHandler
             "ocr" => await HandleOcr(args),
             "find-on-screen" => await HandleFindOnScreen(args),
             "ocr-click" => await HandleOcrClick(args),
+            "ocr-scan" => await HandleOcrScan(args),
             _ => 1
         };
     }
@@ -144,12 +160,19 @@ public class OcrCommandHandler : ICommandHandler
             return 1;
         }
 
+        // OCR returns physical pixel coords relative to the screenshot.
+        // For window captures, add the window's PHYSICAL screen position.
         int screenX = center.Value.x;
         int screenY = center.Value.y;
         if (!string.IsNullOrEmpty(window))
         {
             var win = _windowService.FindWindow(window);
-            if (win != null) { screenX += win.Rect.X; screenY += win.Rect.Y; }
+            if (win != null)
+            {
+                var (physX, physY, _) = GetWindowPhysicalOrigin(win);
+                screenX += physX;
+                screenY += physY;
+            }
         }
 
         _tempFiles.CleanupFile(outPath);
@@ -184,13 +207,87 @@ public class OcrCommandHandler : ICommandHandler
         if (!string.IsNullOrEmpty(window))
         {
             var win = _windowService.FindWindow(window);
-            if (win != null) { screenX += win.Rect.X; screenY += win.Rect.Y; }
+            if (win != null)
+            {
+                var (physX, physY, _) = GetWindowPhysicalOrigin(win);
+                screenX += physX;
+                screenY += physY;
+            }
         }
 
         _inputService.Click(screenX, screenY);
         _tempFiles.CleanupFile(outPath);
 
         var result = CommandResult.Ok("ocr-click", new { text, clicked_x = screenX, clicked_y = screenY, rel_x = center.Value.x, rel_y = center.Value.y });
+        CliHelpers.PrintJson(result);
+        return 0;
+    }
+
+    /// <summary>
+    /// ocr-scan: Scan a window or full screen for ALL visible text with physical screen coordinates.
+    /// Works on ANY app type (Electron, UWP, Chromium, Win32) since it uses screenshot + OCR.
+    /// </summary>
+    private async Task<int> HandleOcrScan(string[] args)
+    {
+        var window = CliHelpers.GetFlag(args, "--window", "-w");
+        var outPath = _tempFiles.CreateTempPath("ocr_scan");
+
+        CaptureResult cap;
+        int winPhysX = 0, winPhysY = 0;
+        double dpiScale = 1.0;
+
+        if (!string.IsNullOrEmpty(window))
+        {
+            var win = _windowService.FindWindow(window);
+            if (win == null) { CliHelpers.PrintError("ocr-scan", $"Window not found: {window}"); return 1; }
+            cap = _captureService.CaptureWindow(window, outPath);
+            if (cap.Success)
+            {
+                dpiScale = cap.ScaleFactor > 0 ? cap.ScaleFactor : DpiContext.Default.GetScaleFactor(win.HandleIntPtr);
+                winPhysX = (int)Math.Round(win.Rect.X * dpiScale);
+                winPhysY = (int)Math.Round(win.Rect.Y * dpiScale);
+            }
+        }
+        else
+        {
+            cap = _captureService.CaptureScreen(outPath);
+        }
+
+        if (!cap.Success) { CliHelpers.PrintError("ocr-scan", $"Screenshot failed: {cap.Error}"); return 1; }
+
+        var ocrResult = await _ocrService.RecognizeImageAsync(outPath);
+        _tempFiles.CleanupFile(outPath);
+
+        if (!string.IsNullOrEmpty(ocrResult.Error)) { CliHelpers.PrintError("ocr-scan", $"OCR error: {ocrResult.Error}"); return 1; }
+
+        var elements = new List<object>();
+        foreach (var word in ocrResult.Words.Where(w => w.BoundingBox != null))
+        {
+            int physX = (int)word.BoundingBox!.X + winPhysX;
+            int physY = (int)word.BoundingBox.Y + winPhysY;
+            int physW = (int)word.BoundingBox.Width;
+            int physH = (int)word.BoundingBox.Height;
+
+            elements.Add(new
+            {
+                text = word.Text,
+                screen_x = physX,
+                screen_y = physY,
+                screen_cx = physX + physW / 2,
+                screen_cy = physY + physH / 2,
+                width = physW,
+                height = physH
+            });
+        }
+
+        var result = CommandResult.Ok("ocr-scan", new
+        {
+            window = window ?? "full_screen",
+            dpi_scale = dpiScale,
+            element_count = elements.Count,
+            total_text = ocrResult.Text.Length > 500 ? ocrResult.Text[..500] + "..." : ocrResult.Text,
+            elements
+        });
         CliHelpers.PrintJson(result);
         return 0;
     }

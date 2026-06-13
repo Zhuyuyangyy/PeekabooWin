@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
@@ -27,10 +26,7 @@ public class AgentService
     private readonly InputService _inputService;
     private readonly UIAutomationService _uiaService;
     private readonly OcrService _ocrService;
-    private readonly HttpClient _httpClient;
-
-    private const string MINIMAX_API = "https://api.minimax.chat/v1/chat/completions";
-    private const string MINIMAX_MODEL = "MiniMax-M2.7";
+    private readonly ILlmClient? _llmClient;
 
     private static readonly List<ToolDescriptor> AvailableTools = new()
     {
@@ -51,14 +47,14 @@ public class AgentService
         new ToolDescriptor { Name = "ocr", Description = "Recognize text in a screenshot. Can search for text and click.", Parameters = new() { ["window"] = "optional window title keyword", ["text"] = "optional text to search for and click" } },
     };
 
-    public AgentService(WindowService windowService, CaptureService captureService, InputService inputService, UIAutomationService uiaService, OcrService ocrService)
+    public AgentService(WindowService windowService, CaptureService captureService, InputService inputService, UIAutomationService uiaService, OcrService ocrService, ILlmClient? llmClient = null)
     {
         _windowService = windowService;
         _captureService = captureService;
         _inputService = inputService;
         _uiaService = uiaService;
         _ocrService = ocrService;
-        _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+        _llmClient = llmClient;
     }
 
     public AgentService(AgentOrchestrator orchestrator)
@@ -69,7 +65,7 @@ public class AgentService
         _inputService = null!;
         _uiaService = null!;
         _ocrService = null!;
-        _httpClient = null!;
+        _llmClient = null;
     }
 
     public async Task<AgentTaskResponse> ExecuteTaskAsync(AgentTaskRequest request, CancellationToken cancellationToken = default)
@@ -79,7 +75,7 @@ public class AgentService
         var response = new AgentTaskResponse
         {
             Task = request.Task,
-            LlmModel = MINIMAX_MODEL
+            LlmModel = _llmClient?.ProviderName ?? "none"
         };
 
         try
@@ -419,24 +415,23 @@ Output: [
         var userPrompt = $@"Task: ""{task}"""
             + (string.IsNullOrEmpty(context) ? "" : $"\nContext: {context}");
 
-        var apiKey = Environment.GetEnvironmentVariable("MINIMAX_API_KEY");
-        if (string.IsNullOrEmpty(apiKey))
+        if (_llmClient == null || !_llmClient.IsAvailable)
         {
-            PekaLogger.Warn("AgentService", "LLM fallback: MINIMAX_API_KEY not set, using regex-only parsing");
+            PekaLogger.Warn("AgentService", "LLM fallback: LLM client not available, using regex-only parsing");
             return new List<AgentStep>
             {
                 new AgentStep
                 {
                     Thought = $"Cannot parse task without LLM: {task}",
                     Action = "error",
-                    Args = new() { ["message"] = "No MINIMAX_API_KEY set, cannot parse complex tasks. Try simpler commands like 'click 100 200' or 'type hello'." }
+                    Args = new() { ["message"] = "No LLM API key set, cannot parse complex tasks. Try simpler commands like 'click 100 200' or 'type hello'." }
                 }
             };
         }
 
         try
         {
-            var response = await CallMiniMaxAsync(systemPrompt, userPrompt, apiKey);
+            var response = await _llmClient.ChatAsync(systemPrompt, userPrompt);
             var steps = ParseStepsFromLLMResponse(response);
             if (steps.Count > 0)
                 return steps;
@@ -701,6 +696,8 @@ Output: [
                     return (false, "No active window found");
 
                 var element = args["element"];
+
+                // Phase 1: Try UIA on the active window
                 var findResult = _uiaService.FindByName(activeWin.Title, element);
                 if (findResult.Success && findResult.Count > 0)
                 {
@@ -714,6 +711,7 @@ Output: [
                     }
                 }
 
+                // Phase 1b: Try UIA on all windows whose title contains the element
                 foreach (var win in windows.Where(w => w.Title.Contains(element)))
                 {
                     var r = _uiaService.FindByName(win.Title, element);
@@ -727,7 +725,43 @@ Output: [
                     }
                 }
 
-                return (false, $"Cannot find element: {element}");
+                // Phase 2: OCR fallback — critical for Chromium, Electron, UWP apps
+                // where UIA returns empty frames.
+                {
+                    var tempPath = Path.Combine(Path.GetTempPath(), $"agent_click_{Guid.NewGuid():N}.png");
+                    try
+                    {
+                        var cap = _captureService.CaptureWindow(activeWin.Title, tempPath);
+                        if (cap.Success)
+                        {
+                            var ocrResult = await _ocrService.RecognizeImageAsync(tempPath);
+                            if (string.IsNullOrEmpty(ocrResult.Error))
+                            {
+                                var center = _ocrService.FindWordCenter(ocrResult, element);
+                                if (center != null)
+                                {
+                                    int screenX = center.Value.x;
+                                    int screenY = center.Value.y;
+                                    double scale = DpiContext.Default.GetScaleFactor(activeWin.HandleIntPtr);
+                                    screenX += (int)Math.Round(activeWin.Rect.X * scale);
+                                    screenY += (int)Math.Round(activeWin.Rect.Y * scale);
+                                    _inputService.Click(screenX, screenY);
+                                    return (true, $"Clicked '{element}' at ({screenX}, {screenY}) via OCR in '{activeWin.Title}'");
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        PekaLogger.Warn("AgentService", $"OCR fallback failed for click-element-guess: {ex.Message}");
+                    }
+                    finally
+                    {
+                        try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
+                    }
+                }
+
+                return (false, $"Cannot find element: {element} (tried UIA and OCR on '{activeWin.Title}')");
             }
 
             case "ocr-find":
@@ -782,36 +816,6 @@ Output: [
             default:
                 return (false, $"Unknown action: {action}");
         }
-    }
-
-    private async Task<string> CallMiniMaxAsync(string systemPrompt, string userPrompt, string apiKey)
-    {
-        var requestBody = new
-        {
-            model = MINIMAX_MODEL,
-            messages = new[]
-            {
-                new { role = "system", content = systemPrompt },
-                new { role = "user", content = userPrompt }
-            },
-            temperature = 0.1,
-            max_tokens = 1024
-        };
-
-        var json = JsonSerializer.Serialize(requestBody);
-        var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-        var request = new HttpRequestMessage(HttpMethod.Post, MINIMAX_API);
-        request.Headers.Add("Authorization", $"Bearer {apiKey}");
-        request.Content = content;
-
-        var response = await _httpClient.SendAsync(request);
-        response.EnsureSuccessStatusCode();
-
-        var responseJson = await response.Content.ReadAsStringAsync();
-        var responseObj = JsonSerializer.Deserialize<JsonElement>(responseJson);
-
-        return responseObj.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString() ?? "[]";
     }
 
     private List<AgentStep> ParseStepsFromLLMResponse(string response)

@@ -2,81 +2,52 @@
   "success": true,
   "command": "agent",
   "data": {
-    "task": "send",
+    "task": "send email with sensitive data",
     "success": false,
-    "steps": [
-      {
-        "step": 1,
-        "thought": "Cannot parse task without LLM: send",
-        "action": "error",
-        "args": {
-          "message": "No MINIMAX_API_KEY set, cannot parse complex tasks. Try simpler commands like 'click 100 200' or 'type hello'."
-        },
-        "result": "No MINIMAX_API_KEY set, cannot parse complex tasks. Try simpler commands like 'click 100 200' or 'type hello'.",
-        "success": false,
-        "error": null
-      }
-    ],
-    "final_result": "Failed at step 1: unknown error",
-    "llm_model": "minimax/MiniMax-M2.7",
-    "error": null,
+    "steps": [],
+    "final_result": null,
+    "llm_model": "deepseek",
+    "error": "Task blocked: 任务包含高危意图: 'send email with sensitive'",
     "timeout_ms": 30000,
     "cancelled": false,
     "timeout_triggered": false,
-    "parser_mode": "regex_fallback",
-    "llm_enabled": false,
-    "fallback_reason": "MINIMAX_API_KEY not set",
-    "llm_error_code": "MISSING_API_KEY",
+    "parser_mode": "llm_error",
+    "llm_enabled": true,
+    "fallback_reason": "LLM HTTP error: Response status code does not indicate success: 401 (Authorization Required).",
+    "llm_error_code": "LLM_HTTP_ERROR",
     "trace": {
-      "traceId": "trace_20260602_175747",
-      "task": "send",
-      "startedAt": "2026-06-02T09:57:47.6902748Z",
-      "completedAt": "2026-06-02T09:57:48.358473Z",
+      "traceId": "trace_20260602_210343",
+      "task": "send email with sensitive data",
+      "startedAt": "2026-06-02T13:03:43.3433473Z",
+      "completedAt": "2026-06-02T13:03:43.7027618Z",
       "success": false,
-      "parserMode": "regex_fallback",
-      "llmEnabled": false,
-      "fallbackReason": "MINIMAX_API_KEY not set",
-      "decision": "ALLOW",
-      "riskLevel": "L0",
+      "parserMode": "llm_error",
+      "llmEnabled": true,
+      "fallbackReason": "LLM HTTP error: Response status code does not indicate success: 401 (Authorization Required).",
+      "decision": "BLOCK",
+      "riskLevel": "L2",
+      "taskRiskDecision": "BLOCK",
+      "taskRiskScore": 1,
+      "taskRiskPattern": "send email with sensitive",
+      "planRiskDecision": null,
+      "planRiskScore": 0,
+      "planRiskMatchedStep": null,
       "groundingScore": 0,
-      "stepTraces": [
-        {
-          "stepIndex": 0,
-          "action": "error",
-          "args": {
-            "message": "No MINIMAX_API_KEY set, cannot parse complex tasks. Try simpler commands like 'click 100 200' or 'type hello'."
-          },
-          "thought": "Cannot parse task without LLM: send",
-          "success": false,
-          "error": null,
-          "result": "No MINIMAX_API_KEY set, cannot parse complex tasks. Try simpler commands like 'click 100 200' or 'type hello'.",
-          "riskGate": null,
-          "verification": null,
-          "recovery": {
-            "strategy": "Retry",
-            "shouldRetry": true,
-            "recoveryStepCount": 1
-          },
-          "candidateRanking": null,
-          "transferDecision": null,
-          "executedAt": "2026-06-02T09:57:47.7076721Z",
-          "latencyMs": 649
-        }
-      ],
+      "stepTraces": [],
       "error": null,
       "cancelled": false,
       "timeoutTriggered": false,
       "timeoutMs": 30000,
-      "totalSteps": 1,
+      "totalSteps": 0,
       "successfulSteps": 0,
-      "failedSteps": 1,
+      "failedSteps": 0,
       "blockedSteps": 0,
-      "recoveryAttempts": 1
+      "recoveryAttempts": 0
     }
   },
   "error": null,
   "error_code": null,
   "hint": null,
-  "trace_id": "1f7cd56a",
-  "timestamp": "2026-06-02T09:57:48.3593452Z"
+  "trace_id": "5a31b867",
+  "timestamp": "2026-06-02T13:03:43.7031805Z"
 }

@@ -1,4 +1,3 @@
-using System.Net.Http;
 using Xunit;
 using PeekabooWin.Core.Agent;
 using PeekabooWin.Core.Models;
@@ -7,7 +6,7 @@ namespace PeekabooWin.Core.Tests;
 
 public class ParserFallbackTraceTests
 {
-    private readonly TaskParser _parser = new(new HttpClient());
+    private readonly TaskParser _parser = new();
 
     [Fact]
     public void ParseTaskMetadata_HasFallbackReasonProperty()

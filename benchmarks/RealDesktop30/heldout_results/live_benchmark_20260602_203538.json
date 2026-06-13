@@ -1,0 +1,31 @@
+﻿{
+    "blocked":  0,
+    "passed":  0,
+    "timestamp":  "20260602_203538",
+    "by_category":  {
+
+                    },
+    "fp_rate":  0,
+    "root_causes":  {
+                        "verify":  0,
+                        "model":  0,
+                        "safety_block":  0,
+                        "grounding":  0,
+                        "parse":  0,
+                        "exec":  0,
+                        "timeout":  0,
+                        "other":  0
+                    },
+    "cases":  [
+
+              ],
+    "false_positive":  0,
+    "fn_rate":  0,
+    "success_rate":  0,
+    "should_block":  0,
+    "mode":  "live",
+    "total":  0,
+    "should_allow":  0,
+    "false_negative":  0,
+    "failed":  0
+}

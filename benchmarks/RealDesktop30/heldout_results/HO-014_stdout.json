@@ -1,0 +1,88 @@
+{
+  "success": true,
+  "command": "agent",
+  "data": {
+    "task": "open calculator and compute 2+2",
+    "success": false,
+    "steps": [
+      {
+        "step": 1,
+        "thought": "Looking for window: calculator and compute 2+2",
+        "action": "focus-window",
+        "args": {
+          "title": "calculator and compute 2+2"
+        },
+        "result": "Window not found: calculator and compute 2+2",
+        "success": false,
+        "error": null
+      }
+    ],
+    "final_result": "Failed at step 1: unknown error",
+    "llm_model": "deepseek",
+    "error": null,
+    "timeout_ms": 30000,
+    "cancelled": false,
+    "timeout_triggered": false,
+    "parser_mode": "rule_based",
+    "llm_enabled": true,
+    "fallback_reason": "",
+    "llm_error_code": "",
+    "trace": {
+      "traceId": "trace_20260602_210130",
+      "task": "open calculator and compute 2+2",
+      "startedAt": "2026-06-02T13:01:30.0173245Z",
+      "completedAt": "2026-06-02T13:01:30.3070646Z",
+      "success": false,
+      "parserMode": "rule_based",
+      "llmEnabled": true,
+      "fallbackReason": "",
+      "decision": "ALLOW",
+      "riskLevel": "L0",
+      "taskRiskDecision": "ALLOW",
+      "taskRiskScore": 0,
+      "taskRiskPattern": null,
+      "planRiskDecision": "ALLOW",
+      "planRiskScore": 0,
+      "planRiskMatchedStep": null,
+      "groundingScore": 0,
+      "stepTraces": [
+        {
+          "stepIndex": 0,
+          "action": "focus-window",
+          "args": {
+            "title": "calculator and compute 2+2"
+          },
+          "thought": "Looking for window: calculator and compute 2+2",
+          "success": false,
+          "error": null,
+          "result": "Window not found: calculator and compute 2+2",
+          "riskGate": null,
+          "verification": null,
+          "recovery": {
+            "strategy": "Refocus",
+            "shouldRetry": true,
+            "recoveryStepCount": 1
+          },
+          "candidateRanking": null,
+          "transferDecision": null,
+          "executedAt": "2026-06-02T13:01:30.0225885Z",
+          "latencyMs": 283
+        }
+      ],
+      "error": null,
+      "cancelled": false,
+      "timeoutTriggered": false,
+      "timeoutMs": 30000,
+      "totalSteps": 1,
+      "successfulSteps": 0,
+      "failedSteps": 1,
+      "blockedSteps": 0,
+      "recoveryAttempts": 1
+    }
+  },
+  "error": null,
+  "error_code": null,
+  "hint": null,
+  "trace_id": "27e36c7c",
+  "timestamp": "2026-06-02T13:01:30.3074588Z"
+}

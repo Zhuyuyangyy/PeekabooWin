@@ -225,7 +225,55 @@ public class OcrService : IDisposable
         // This handles cases where Windows.Media.Ocr splits tokens (e.g. "github.com" → "github" + "com")
         if (result.Text.Contains(keyword, comparison))
         {
-            // Return a synthetic OcrWord with no bounding box for full-text matches
+            // Try to find the keyword spanning adjacent words in a single line
+            // and compute a merged bounding box from those words.
+            foreach (var line in result.Words
+                .GroupBy(w => Math.Round(w.BoundingBox?.Y ?? 0, 0))
+                .OrderBy(g => g.Key))
+            {
+                var lineWords = line.OrderBy(w => w.BoundingBox?.X ?? 0).ToList();
+                var joined = string.Join(" ", lineWords.Select(w => w.Text));
+                var idx = joined.IndexOf(keyword, comparison);
+                if (idx >= 0)
+                {
+                    int charPos = 0;
+                    int startW = -1, endW = -1;
+                    for (int i = 0; i < lineWords.Count; i++)
+                    {
+                        int wordStart = charPos;
+                        int wordEnd = charPos + lineWords[i].Text.Length;
+                        if (startW < 0 && wordEnd > idx) startW = i;
+                        if (wordStart < idx + keyword.Length) endW = i;
+                        charPos = wordEnd + 1; // +1 for the space from Join
+                    }
+
+                    if (startW >= 0 && endW >= 0
+                        && lineWords[startW].BoundingBox != null
+                        && lineWords[endW].BoundingBox != null)
+                    {
+                        var firstBox = lineWords[startW].BoundingBox!;
+                        var lastBox = lineWords[endW].BoundingBox!;
+                        double x1 = firstBox.X, y1 = firstBox.Y;
+                        double x2 = lastBox.X + lastBox.Width;
+                        double y2 = Math.Max(firstBox.Y + firstBox.Height, lastBox.Y + lastBox.Height);
+
+                        return new List<OcrWord>
+                        {
+                            new OcrWord
+                            {
+                                Text = keyword,
+                                BoundingBox = new OcrRect
+                                {
+                                    X = x1, Y = y1, Width = x2 - x1, Height = y2 - y1
+                                },
+                                Confidence = 0.8
+                            }
+                        };
+                    }
+                }
+            }
+
+            // Could not compute bounding box from lines; return synthetic match with null bbox
             return new List<OcrWord>
             {
                 new OcrWord
@@ -271,12 +319,55 @@ public class OcrService : IDisposable
         if (words.Count == 0) return null;
 
         var first = words[0];
-        if (first.BoundingBox == null) return null;
 
-        return (
-            (int)(first.BoundingBox.X + first.BoundingBox.Width / 2),
-            (int)(first.BoundingBox.Y + first.BoundingBox.Height / 2)
-        );
+        // If we have a valid bounding box, return its center directly
+        if (first.BoundingBox != null)
+        {
+            return (
+                (int)(first.BoundingBox.X + first.BoundingBox.Width / 2),
+                (int)(first.BoundingBox.Y + first.BoundingBox.Height / 2)
+            );
+        }
+
+        // BoundingBox is null (full-text fallback could not estimate coordinates).
+        // For CJK text, try individual character matching to recover coordinates.
+        if (keyword.Length > 1 && ContainsChinese(keyword))
+        {
+            var comparison = caseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
+            var charMatchWords = new List<OcrWord>();
+            foreach (var ch in keyword)
+            {
+                charMatchWords.AddRange(result.Words
+                    .Where(w => w.BoundingBox != null && w.Text.Contains(ch.ToString(), comparison))
+                    .ToList());
+            }
+
+            if (charMatchWords.Count > 0)
+            {
+                // Compute center of the bounding rectangle covering all matched characters
+                double minX = charMatchWords.Min(w => w.BoundingBox!.X);
+                double minY = charMatchWords.Min(w => w.BoundingBox!.Y);
+                double maxX = charMatchWords.Max(w => w.BoundingBox!.X + w.BoundingBox!.Width);
+                double maxY = charMatchWords.Max(w => w.BoundingBox!.Y + w.BoundingBox!.Height);
+                return ((int)((minX + maxX) / 2), (int)((minY + maxY) / 2));
+            }
+        }
+
+        // For non-CJK text, try to find the keyword inside any single OCR word with coordinates
+        {
+            var comparison = caseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
+            var partialMatch = result.Words
+                .FirstOrDefault(w => w.BoundingBox != null && w.Text.Contains(keyword, comparison));
+            if (partialMatch?.BoundingBox != null)
+            {
+                return (
+                    (int)(partialMatch.BoundingBox.X + partialMatch.BoundingBox.Width / 2),
+                    (int)(partialMatch.BoundingBox.Y + partialMatch.BoundingBox.Height / 2)
+                );
+            }
+        }
+
+        return null;
     }
 
     public void Dispose() { }
