@@ -1,5 +1,8 @@
-using System.Runtime.InteropServices;
 using WinAgent.Core.Models;
+
+#if WINDOWS
+using System.Runtime.InteropServices;
+#endif
 
 namespace WinAgent.Core.Actions;
 
@@ -13,6 +16,7 @@ namespace WinAgent.Core.Actions;
 /// </summary>
 public class ActionExecutor
 {
+#if WINDOWS
     [DllImport("user32.dll")]
     private static extern bool SetCursorPos(int x, int y);
 
@@ -62,12 +66,14 @@ public class ActionExecutor
         public uint Time;
         public IntPtr DwExtraInfo;
     }
+#endif
 
     /// <summary>
     /// 执行操作 — 必须通过 GroundingResult 传入
     /// </summary>
     public ActionResult Execute(ActionRequest request, GroundingResult grounding, bool force = false)
     {
+#if WINDOWS
         // 安全检查
         if (grounding.IsPotentiallyDangerous && !force)
         {
@@ -208,8 +214,18 @@ public class ActionExecutor
                 Error = ex.Message
             };
         }
+#else
+        return new ActionResult
+        {
+            Success = false,
+            Type = request.Type,
+            TargetId = request.TargetId,
+            Error = "This tool requires Windows"
+        };
+#endif
     }
 
+#if WINDOWS
     private void Click(int x, int y)
     {
         SetCursorPos(x, y);
@@ -315,4 +331,5 @@ public class ActionExecutor
             _ => 0
         };
     }
+#endif
 }

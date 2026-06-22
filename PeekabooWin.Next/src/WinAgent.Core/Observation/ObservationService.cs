@@ -45,8 +45,13 @@ public class ObservationService
         };
 
         // 获取窗口信息
+#if WINDOWS
         var windowBounds = Coordinate.CoordinateMapper.GetWindowPhysicalBoundsStatic(windowHandle);
         var title = Coordinate.CoordinateMapper.GetWindowTitleStatic(windowHandle);
+#else
+        var windowBounds = new Models.BoundingBox();
+        var title = "";
+#endif
 
         result.ActiveWindow = new WindowInfo
         {

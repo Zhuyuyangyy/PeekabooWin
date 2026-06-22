@@ -1,3 +1,4 @@
+#if WINDOWS
 using System.Windows.Automation;
 using WinAgent.Core.Coordinate;
 using WinAgent.Core.Models;
@@ -208,3 +209,4 @@ public class UiaSensor : IObservationSensor
         catch { return defaultValue; }
     }
 }
+#endif

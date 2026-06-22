@@ -1,6 +1,9 @@
+using WinAgent.Core.Models;
+
+#if WINDOWS
 using System.Runtime.InteropServices;
 using System.Text;
-using WinAgent.Core.Models;
+#endif
 
 namespace WinAgent.Core.Coordinate;
 
@@ -15,6 +18,7 @@ namespace WinAgent.Core.Coordinate;
 /// </summary>
 public class CoordinateMapper
 {
+#if WINDOWS
     [DllImport("user32.dll")]
     private static extern IntPtr GetDC(IntPtr hwnd);
 
@@ -70,6 +74,7 @@ public class CoordinateMapper
             Height = (int)(logicalBox.Height * scale)
         };
     }
+#endif
 
     /// <summary>
     /// 将截图内的 OCR 坐标映射到 physical screen pixels
@@ -88,6 +93,7 @@ public class CoordinateMapper
         };
     }
 
+#if WINDOWS
     /// <summary>
     /// 将截图内的 OCR 坐标映射到全屏 physical screen pixels
     /// </summary>
@@ -170,4 +176,5 @@ public class CoordinateMapper
         GetWindowText(hwnd, sb, 256);
         return sb.ToString();
     }
+#endif
 }

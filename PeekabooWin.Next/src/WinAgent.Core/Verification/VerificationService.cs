@@ -1,7 +1,10 @@
+using WinAgent.Core.Models;
+
+#if WINDOWS
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
-using WinAgent.Core.Models;
+#endif
 
 namespace WinAgent.Core.Verification;
 
@@ -15,6 +18,7 @@ namespace WinAgent.Core.Verification;
 /// </summary>
 public class VerificationService
 {
+#if WINDOWS
     [DllImport("user32.dll")]
     private static extern IntPtr GetDesktopWindow();
 
@@ -133,6 +137,7 @@ public class VerificationService
             AfterScreenshot = afterPath
         };
     }
+#endif
 
     /// <summary>
     /// 比较两个 observe 结果的元素变化

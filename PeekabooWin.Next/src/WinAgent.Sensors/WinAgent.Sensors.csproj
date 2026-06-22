@@ -7,12 +7,8 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <RootNamespace>WinAgent.Sensors</RootNamespace>
+    <DefineConstants>$(DefineConstants);WINDOWS</DefineConstants>
   </PropertyGroup>
-
-  <ItemGroup>
-    <FrameworkReference Include="Microsoft.WindowsDesktop.App" />
-  </ItemGroup>
-
   <ItemGroup>
     <ProjectReference Include="..\WinAgent.Core\WinAgent.Core.csproj" />
   </ItemGroup>

@@ -9,12 +9,8 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <RootNamespace>WinAgent.App</RootNamespace>
     <AssemblyName>winagent</AssemblyName>
+    <DefineConstants>$(DefineConstants);WINDOWS</DefineConstants>
   </PropertyGroup>
-
-  <ItemGroup>
-    <FrameworkReference Include="Microsoft.WindowsDesktop.App" />
-  </ItemGroup>
-
   <ItemGroup>
     <ProjectReference Include="..\WinAgent.Core\WinAgent.Core.csproj" />
     <ProjectReference Include="..\WinAgent.Sensors\WinAgent.Sensors.csproj" />

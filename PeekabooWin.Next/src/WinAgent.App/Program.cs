@@ -1,12 +1,12 @@
-using System.Runtime.InteropServices;
 using System.Text.Json;
 using WinAgent.Core.Actions;
-using WinAgent.Core.Coordinate;
 using WinAgent.Core.Grounding;
 using WinAgent.Core.Models;
 using WinAgent.Core.Observation;
+#if WINDOWS
 using WinAgent.Core.Verification;
 using WinAgent.Sensors.UIA;
+#endif
 
 namespace WinAgent.App;
 
@@ -23,8 +23,10 @@ class Program
 {
     private static readonly ObservationService _observationService = new();
     private static readonly GroundingService _groundingService = new();
+#if WINDOWS
     private static readonly ActionExecutor _actionExecutor = new();
     private static readonly VerificationService _verificationService = new();
+#endif
 
     private static readonly JsonSerializerOptions _jsonOpts = new()
     {
@@ -40,8 +42,10 @@ class Program
             return 1;
         }
 
+#if WINDOWS
         // 注册传感器
         _observationService.RegisterSensor(new UiaSensor());
+#endif
 
         var command = args[0].ToLower();
         var opts = ParseArgs(args[1..]);
@@ -66,6 +70,7 @@ class Program
 
     static int CmdObserve(Dictionary<string, string> opts)
     {
+#if WINDOWS
         var windowKeyword = GetOpt(opts, "window", "w", "");
         if (string.IsNullOrEmpty(windowKeyword))
             return Fail("--window is required");
@@ -113,6 +118,10 @@ class Program
 
         Console.WriteLine(JsonSerializer.Serialize(output, _jsonOpts));
         return 0;
+#else
+        Console.Error.WriteLine("This tool requires Windows");
+        return 1;
+#endif
     }
 
     static int CmdGround(Dictionary<string, string> opts)
@@ -155,6 +164,7 @@ class Program
 
     static int CmdAct(Dictionary<string, string> opts)
     {
+#if WINDOWS
         var targetId = GetOpt(opts, "target", "t", "");
         if (string.IsNullOrEmpty(targetId))
             return Fail("--target is required");
@@ -259,10 +269,15 @@ class Program
 
         Console.WriteLine(JsonSerializer.Serialize(output, _jsonOpts));
         return result.Success ? 0 : 1;
+#else
+        Console.Error.WriteLine("This tool requires Windows");
+        return 1;
+#endif
     }
 
     static int CmdVerify(Dictionary<string, string> opts)
     {
+#if WINDOWS
         var beforePath = GetOpt(opts, "before", "b", "");
         var afterPath = GetOpt(opts, "after", "a", "");
 
@@ -285,6 +300,10 @@ class Program
 
         Console.WriteLine(JsonSerializer.Serialize(output, _jsonOpts));
         return 0;
+#else
+        Console.Error.WriteLine("This tool requires Windows");
+        return 1;
+#endif
     }
 
     static int CmdHelp()
@@ -293,6 +312,7 @@ class Program
         return 0;
     }
 
+#if WINDOWS
     static IntPtr FindWindowByKeyword(string keyword)
     {
         var hwnd = Windows.NativeMethods.FindWindow(null, keyword);
@@ -317,6 +337,7 @@ class Program
 
         return found;
     }
+#endif
 
     static void PrintUsage()
     {
