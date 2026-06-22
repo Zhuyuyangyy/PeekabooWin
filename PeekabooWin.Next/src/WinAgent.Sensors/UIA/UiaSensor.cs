@@ -1,6 +1,7 @@
 using System.Windows.Automation;
 using WinAgent.Core.Coordinate;
 using WinAgent.Core.Models;
+using WinAgent.Core.Observation;
 
 namespace WinAgent.Sensors.UIA;
 
@@ -11,6 +12,7 @@ namespace WinAgent.Sensors.UIA;
 /// - 所有坐标通过 CoordinateMapper 转换为 physical screen pixels
 /// - 每个元素必须标记 Source = ElementSource.UIA
 /// - confidence 基于 UIA 属性完整性评估，不伪造
+/// - 过滤不可见/太小/无意义的元素
 /// </summary>
 public class UiaSensor : IObservationSensor
 {
@@ -127,12 +129,31 @@ public class UiaSensor : IObservationSensor
         return Math.Min(1.0, score);
     }
 
+    /// <summary>
+    /// UIA 元素过滤 — 去掉无意义元素
+    /// </summary>
     private bool IsRelevant(ElementSnapshot el)
     {
-        if (el.Role == ElementRole.Unknown && string.IsNullOrEmpty(el.Name))
+        // bbox 面积太小
+        if (el.BBox.Width < 3 || el.BBox.Height < 3)
             return false;
-        if (el.BBox.Width <= 0 || el.BBox.Height <= 0)
+
+        // 面积 < 25px²
+        if (el.BBox.Width * el.BBox.Height < 25)
             return false;
+
+        // 不可见
+        if (!el.Visible)
+            return false;
+
+        // 无 name 且无 automationId 且不是交互元素
+        if (string.IsNullOrEmpty(el.Name) && string.IsNullOrEmpty(el.AutomationId)
+            && el.Role is not (ElementRole.Button or ElementRole.Input
+                or ElementRole.Checkbox or ElementRole.Link or ElementRole.MenuItem))
+        {
+            return false;
+        }
+
         return true;
     }
 

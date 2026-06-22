@@ -4,6 +4,7 @@ namespace WinAgent.Core.Observation;
 
 /// <summary>
 /// 观察器接口 — 感知层抽象
+/// 放在 Core 中，Sensors 实现此接口
 /// </summary>
 public interface IObservationSensor
 {
@@ -22,11 +23,11 @@ public interface IObservationSensor
 /// 2. 同一区域元素去重 (IoU > 0.5 时取高优先级)
 /// 3. 所有坐标统一为 physical screen pixels
 /// 4. 所有元素必须有 source 标记
+/// 5. element id 稳定生成: {role_prefix}_{index}
 /// </summary>
 public class ObservationService
 {
     private readonly List<IObservationSensor> _sensors = new();
-    private readonly Coordinate.CoordinateMapper _coordMapper = new();
     private readonly ElementDeduplicator _deduplicator = new();
 
     public void RegisterSensor(IObservationSensor sensor)
@@ -44,10 +45,13 @@ public class ObservationService
         };
 
         // 获取窗口信息
-        var windowBounds = _coordMapper.GetWindowPhysicalBounds(windowHandle);
+        var windowBounds = Coordinate.CoordinateMapper.GetWindowPhysicalBoundsStatic(windowHandle);
+        var title = Coordinate.CoordinateMapper.GetWindowTitleStatic(windowHandle);
+
         result.ActiveWindow = new WindowInfo
         {
             Handle = windowHandle.ToInt64(),
+            Title = title,
             Bounds = windowBounds
         };
 
@@ -72,7 +76,6 @@ public class ObservationService
             {
                 var elements = sensor.Observe(windowHandle);
 
-                // 坐标转换
                 foreach (var el in elements)
                 {
                     el.Source = sensor.Source;
@@ -143,7 +146,6 @@ public class ElementDeduplicator
                 var iou = elements[i].BBox.IoU(elements[j].BBox);
                 if (iou > IoUThreshold)
                 {
-                    // 保留高优先级来源
                     var priorityI = GetSourcePriority(elements[i].Source);
                     var priorityJ = GetSourcePriority(elements[j].Source);
 

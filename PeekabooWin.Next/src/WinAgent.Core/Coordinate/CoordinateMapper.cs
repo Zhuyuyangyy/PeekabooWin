@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Text;
 using WinAgent.Core.Models;
 
 namespace WinAgent.Core.Coordinate;
@@ -26,29 +27,14 @@ public class CoordinateMapper
     private const int LOGPIXELSX = 88;
     private const int LOGPIXELSY = 90;
 
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int count);
+
     [DllImport("user32.dll")]
     private static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
 
-    [DllImport("user32.dll")]
-    private static extern IntPtr MonitorFromPoint(POINT pt, uint dwFlags);
-
-    [DllImport("user32.dll")]
-    private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
-
     [StructLayout(LayoutKind.Sequential)]
     private struct RECT { public int Left, Top, Right, Bottom; }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct POINT { public int X, Y; }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct MONITORINFO
-    {
-        public int Size;
-        public RECT Monitor;
-        public RECT WorkArea;
-        public uint Flags;
-    }
 
     /// <summary>
     /// 获取系统 DPI 缩放因子
@@ -69,7 +55,6 @@ public class CoordinateMapper
 
     /// <summary>
     /// 将 UIA 逻辑坐标转换为 physical screen pixels
-    /// UIA 在 DPI-aware 进程中返回的是逻辑像素，需要乘以 DPI scale
     /// </summary>
     public BoundingBox UiaToPhysical(BoundingBox logicalBox)
     {
@@ -88,7 +73,6 @@ public class CoordinateMapper
 
     /// <summary>
     /// 将截图内的 OCR 坐标映射到 physical screen pixels
-    /// OCR 坐标是相对于截图的，需要加上窗口偏移
     /// </summary>
     public BoundingBox OcrToPhysical(BoundingBox ocrBox, BoundingBox windowBounds, int screenshotWidth, int screenshotHeight)
     {
@@ -164,5 +148,26 @@ public class CoordinateMapper
         return box.X >= 0 && box.Y >= 0
             && box.Right <= screen.Width
             && box.Bottom <= screen.Height;
+    }
+
+    // ---- 静态方法，供 ObservationService 使用 ----
+
+    public static BoundingBox GetWindowPhysicalBoundsStatic(IntPtr hwnd)
+    {
+        GetWindowRect(hwnd, out var rect);
+        return new BoundingBox
+        {
+            X = rect.Left,
+            Y = rect.Top,
+            Width = rect.Right - rect.Left,
+            Height = rect.Bottom - rect.Top
+        };
+    }
+
+    public static string GetWindowTitleStatic(IntPtr hwnd)
+    {
+        var sb = new StringBuilder(256);
+        GetWindowText(hwnd, sb, 256);
+        return sb.ToString();
     }
 }
