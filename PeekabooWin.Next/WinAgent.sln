@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows10.0.17763.0</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.WindowsDesktop.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="src\WinAgent.Core\WinAgent.Core.csproj" />
+    <ProjectReference Include="src\WinAgent.Sensors\WinAgent.Sensors.csproj" />
+    <ProjectReference Include="src\WinAgent.App\WinAgent.App.csproj" />
+  </ItemGroup>
+</Project>

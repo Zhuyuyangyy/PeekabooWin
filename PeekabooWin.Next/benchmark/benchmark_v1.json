@@ -1,0 +1,242 @@
+[
+  {
+    "id": "T01",
+    "category": "observe",
+    "task": "Open Notepad and observe its elements",
+    "steps": ["observe --window notepad"],
+    "expected": "Returns element list with btn_*, txt_*, mnu_* IDs",
+    "risk": "low"
+  },
+  {
+    "id": "T02",
+    "category": "observe",
+    "task": "Observe Calculator elements",
+    "steps": ["observe --window calculator"],
+    "expected": "Returns element list with button IDs",
+    "risk": "low"
+  },
+  {
+    "id": "T03",
+    "category": "ground",
+    "task": "Ground the File menu in Notepad by ID",
+    "steps": ["observe --window notepad", "ground --target mnu_001"],
+    "expected": "IsGrounded=true, ClickX/Y populated",
+    "risk": "low"
+  },
+  {
+    "id": "T04",
+    "category": "ground",
+    "task": "Ground element by text '保存'",
+    "steps": ["observe --window notepad", "ground --text 保存"],
+    "expected": "Finds save button/element",
+    "risk": "low"
+  },
+  {
+    "id": "T05",
+    "category": "ground",
+    "task": "Ground non-existent element",
+    "steps": ["observe --window notepad", "ground --target btn_999"],
+    "expected": "IsGrounded=false, Error message",
+    "risk": "low"
+  },
+  {
+    "id": "T06",
+    "category": "act",
+    "task": "Click File menu in Notepad (dry-run)",
+    "steps": ["observe --window notepad", "act --target mnu_001 --action click"],
+    "expected": "WasDryRun=true, no actual click",
+    "risk": "low"
+  },
+  {
+    "id": "T07",
+    "category": "act",
+    "task": "Type text into Notepad (dry-run)",
+    "steps": ["observe --window notepad", "act --target inp_001 --action type --text hello"],
+    "expected": "WasDryRun=true, no actual typing",
+    "risk": "low"
+  },
+  {
+    "id": "T08",
+    "category": "safety",
+    "task": "Try clicking 'Close' button without --force",
+    "steps": ["observe --window notepad", "act --target btn_close --action click"],
+    "expected": "WasBlocked=true, DangerWarning shown",
+    "risk": "medium"
+  },
+  {
+    "id": "T09",
+    "category": "safety",
+    "task": "Try clicking 'Delete' button without --force",
+    "steps": ["observe --window dialog", "act --target btn_delete --action click"],
+    "expected": "WasBlocked=true",
+    "risk": "medium"
+  },
+  {
+    "id": "T10",
+    "category": "safety",
+    "task": "Click safe button with --force",
+    "steps": ["observe --window notepad", "act --target btn_save --action click --force"],
+    "expected": "Actually executes",
+    "risk": "medium"
+  },
+  {
+    "id": "T11",
+    "category": "verify",
+    "task": "Verify screenshot change after click",
+    "steps": ["observe --window notepad", "act --target mnu_file --action click --force", "verify --before before.png --after after.png"],
+    "expected": "Changed=true, PixelDiffRatio > 0",
+    "risk": "low"
+  },
+  {
+    "id": "T12",
+    "category": "verify",
+    "task": "Verify no change when clicking same spot twice",
+    "steps": ["verify --before s1.png --after s2.png"],
+    "expected": "Changed=false",
+    "risk": "low"
+  },
+  {
+    "id": "T13",
+    "category": "coordinate",
+    "task": "Verify all coordinates are physical screen pixels",
+    "steps": ["observe --window notepad"],
+    "expected": "CoordinateSpace=PhysicalScreenPixels, all bbox values > 0",
+    "risk": "low"
+  },
+  {
+    "id": "T14",
+    "category": "coordinate",
+    "task": "Verify DPI scaling is correct",
+    "steps": ["observe --window notepad on 150% DPI display"],
+    "expected": "Bbox coordinates match actual pixel positions",
+    "risk": "low"
+  },
+  {
+    "id": "T15",
+    "category": "observe",
+    "task": "Observe window with no UIA elements (edge case)",
+    "steps": ["observe --window custom_app"],
+    "expected": "Returns empty element list, no crash",
+    "risk": "low"
+  },
+  {
+    "id": "T16",
+    "category": "ground",
+    "task": "Fuzzy match 'save' to '保存(S)'",
+    "steps": ["observe --window notepad", "ground --text save"],
+    "expected": "MatchType=semantic, Score > 0.6",
+    "risk": "low"
+  },
+  {
+    "id": "T17",
+    "category": "ground",
+    "task": "Fuzzy match 'quxiao' to '取消'",
+    "steps": ["observe --window dialog", "ground --text quxiao"],
+    "expected": "MatchType=fuzzy or semantic",
+    "risk": "low"
+  },
+  {
+    "id": "T18",
+    "category": "act",
+    "task": "Hotkey Ctrl+A in Notepad (dry-run)",
+    "steps": ["act --target inp_001 --action hotkey --keys ctrl+a"],
+    "expected": "WasDryRun=true",
+    "risk": "low"
+  },
+  {
+    "id": "T19",
+    "category": "act",
+    "task": "Press Enter key (dry-run)",
+    "steps": ["act --target inp_001 --action hotkey --keys enter"],
+    "expected": "WasDryRun=true",
+    "risk": "low"
+  },
+  {
+    "id": "T20",
+    "category": "observe",
+    "task": "Verify element source tags are present",
+    "steps": ["observe --window notepad"],
+    "expected": "All elements have Source=UIA or OCR",
+    "risk": "low"
+  },
+  {
+    "id": "T21",
+    "category": "observe",
+    "task": "Verify confidence is estimated, not fake",
+    "steps": ["observe --window notepad"],
+    "expected": "No element has EstimatedConfidence=1.0 without justification",
+    "risk": "low"
+  },
+  {
+    "id": "T22",
+    "category": "observe",
+    "task": "Verify element deduplication works",
+    "steps": ["observe --window notepad with both UIA and OCR"],
+    "expected": "No duplicate elements in same bbox area",
+    "risk": "low"
+  },
+  {
+    "id": "T23",
+    "category": "safety",
+    "task": "Dangerous element '确认删除' blocked",
+    "steps": ["ground --text 确认删除", "act --target btn_xxx --action click"],
+    "expected": "IsPotentiallyDangerous=true, WasBlocked=true",
+    "risk": "high"
+  },
+  {
+    "id": "T24",
+    "category": "safety",
+    "task": "Dangerous element 'Uninstall' blocked",
+    "steps": ["ground --text Uninstall", "act --target btn_xxx --action click"],
+    "expected": "IsPotentiallyDangerous=true, WasBlocked=true",
+    "risk": "high"
+  },
+  {
+    "id": "T25",
+    "category": "safety",
+    "task": "Dangerous element 'Pay' blocked",
+    "steps": ["ground --text Pay", "act --target btn_xxx --action click"],
+    "expected": "IsPotentiallyDangerous=true, WasBlocked=true",
+    "risk": "high"
+  },
+  {
+    "id": "T26",
+    "category": "act",
+    "task": "Right-click context menu (dry-run)",
+    "steps": ["act --target txt_001 --action rightclick"],
+    "expected": "WasDryRun=true",
+    "risk": "low"
+  },
+  {
+    "id": "T27",
+    "category": "act",
+    "task": "Double-click to select word (dry-run)",
+    "steps": ["act --target txt_001 --action doubleclick"],
+    "expected": "WasDryRun=true",
+    "risk": "low"
+  },
+  {
+    "id": "T28",
+    "category": "observe",
+    "task": "Observe dialog window",
+    "steps": ["observe --window dialog"],
+    "expected": "Elements include OK/Cancel buttons",
+    "risk": "low"
+  },
+  {
+    "id": "T29",
+    "category": "verify",
+    "task": "Element-level change detection",
+    "steps": ["observe before", "act", "observe after", "compare elements"],
+    "expected": "ElementChange list populated",
+    "risk": "low"
+  },
+  {
+    "id": "T30",
+    "category": "integration",
+    "task": "Full pipeline: observe → ground → act → verify",
+    "steps": ["observe --window notepad", "ground --target mnu_file", "act --target mnu_file --action click --force", "verify"],
+    "expected": "Complete pipeline succeeds end-to-end",
+    "risk": "medium"
+  }
+]
